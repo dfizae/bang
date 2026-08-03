@@ -53,3 +53,36 @@ export function formatPriceLabel({
 export function toPyeong(m2: number) {
   return Math.round((m2 / 3.3058) * 10) / 10;
 }
+
+const dateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+// ISO 시각을 "2026. 08. 01. 14:30"으로 — 값이 없거나 깨진 경우 대시로 대체한다
+export function formatDateTime(isoDateTime?: string) {
+  if (!isoDateTime) {
+    return "—";
+  }
+  const date = new Date(isoDateTime);
+  return Number.isNaN(date.getTime()) ? "—" : dateTimeFormatter.format(date);
+}
+
+// 바이트 → "1.2 MB" (소수 1자리, KB부터)
+export function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const units = ["KB", "MB", "GB"];
+  let size = bytes / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(1)} ${units[unitIndex]}`;
+}

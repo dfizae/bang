@@ -31,13 +31,16 @@ import { isApprovedBroker } from "@/lib/auth";
 import { useAuthStore } from "@/stores/authStore";
 import type { Memo } from "@/types";
 
-// ADMIN 페이지 가드 — 관리자 계정이 아니면 랜딩으로 돌려보낸다
+// ADMIN 페이지 가드 — 세션 복원을 기다린 뒤(RequireAuth) 관리자가 아니면 랜딩으로 돌려보낸다.
+// 직접 URL 진입은 복원 전 첫 렌더의 user가 null이라, 기다리지 않으면 관리자도 튕긴다
 function AdminRoute() {
-  const user = useAuthStore((state) => state.user);
-  if (user?.role !== "관리자") {
-    return <Navigate to="/" replace />;
-  }
-  return <AdminPage />;
+  return (
+    <RequireAuth>
+      {(user) =>
+        user.role === "관리자" ? <AdminPage /> : <Navigate to="/" replace />
+      }
+    </RequireAuth>
+  );
 }
 
 interface MemoActions {

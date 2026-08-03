@@ -229,9 +229,8 @@ export type AuthProvider = "kakao" | "google";
 
 export type UserRole = "세입자" | "중개사" | "관리자";
 
-export type BrokerVerificationStatus =
-  "미신청" | "심사 중" | "승인 완료" | "반려";
-
+// 인증 승인 시 서버가 계정 role을 AGENT로 바꾼다 — 승인 여부는 role이 곧 진실이므로
+// User에 인증 상태를 따로 두지 않는다. 신청 진행 상태는 AgentVerification으로 조회한다
 export interface User {
   id: number;
   name: string;
@@ -241,39 +240,64 @@ export interface User {
   phone: string;
   profileImageUrl?: string;
   role: UserRole;
-  brokerVerification: BrokerVerificationStatus;
-  brokerVerificationRejectReason?: string;
   provider: AuthProvider;
 }
 
 // 프로필 이미지는 엔드포인트가 따로라 여기 포함하지 않는다 (파일로 별도 전송)
 export type UserProfileChanges = Pick<User, "birth" | "nickname" | "phone">;
 
-export interface BrokerVerificationRequest {
-  registrationNumber: string;
-  documentName: string;
+// ── 중개사 인증 API 계약 (Swagger /api/agent-verifications) ───────────────
+export type AgentVerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type AgentVerificationDecision = Exclude<
+  AgentVerificationStatus,
+  "PENDING"
+>;
+
+// 등록번호 실시간 조회 결과 — 신청 전에 사무소 정보를 대조하는 용도
+export interface LicenseCheck {
+  licenseNumber: string;
+  valid: boolean;
+  brokerName?: string;
+  officeName?: string;
+  officeAddress?: string;
+  officePhone?: string;
+  businessStatus?: string;
+  checkedAt?: string;
 }
 
-export type BrokerApplicationStatus = "심사 중" | "승인 완료" | "반려";
-
-export interface BrokerApplicationDocument {
-  type: string;
-  fileName: string;
-  previewUrl: string;
+// brokerName·officeName 등은 서버가 등록번호로 외부 조회해 채운 값이라
+// 조회에 실패한 신청 건에서는 비어 있을 수 있다
+export interface AgentVerification {
+  verificationId: number;
+  userId: number;
+  licenseNumber: string;
+  brokerName?: string;
+  officeName?: string;
+  officeAddress?: string;
+  officePhone?: string;
+  businessStatus?: string;
+  status: AgentVerificationStatus;
+  externalCheckedAt?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
 }
 
-// ADMIN-01~03 중개사 인증 신청 건 — 관리자 심사 대상
-export interface BrokerApplication {
-  id: number;
-  applicantId: number;
-  applicantName: string;
-  nickname: string;
-  email: string;
-  phone: string;
-  registrationNumber: string;
-  documents: BrokerApplicationDocument[];
-  status: BrokerApplicationStatus;
-  appliedAt: string;
-  processedAt?: string;
-  rejectReason?: string;
+// fileUrl은 urlExpiresAt이 지나면 만료되는 임시 URL이다
+export interface VerificationDocument {
+  originalName: string;
+  contentType: string;
+  fileSize: number;
+  fileUrl: string;
+  urlExpiresAt?: string;
+}
+
+export interface AgentVerificationDetail extends AgentVerification {
+  document?: VerificationDocument;
+}
+
+export interface AgentVerificationListParams {
+  status: AgentVerificationStatus;
+  page?: number;
+  size?: number;
 }

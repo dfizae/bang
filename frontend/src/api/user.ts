@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { AuthProvider, User, UserProfileChanges } from "@/types";
+import type { AuthProvider, User, UserProfileChanges, UserRole } from "@/types";
 
 // USER-01 내 정보 조회 / USER-02 내 정보·프로필 이미지 수정 / USER-03 회원 탈퇴 (/api/users/me)
 
@@ -36,14 +36,20 @@ function toAuthProvider(provider: string | null | undefined): AuthProvider {
   return provider?.toLowerCase().includes("google") ? "google" : "kakao";
 }
 
+// 서버 role → 화면 역할. 중개사 인증이 승인되면 서버가 TENANT를 AGENT로 바꾸므로
+// 인증 승인 여부는 이 role 하나로 판단한다 (src/lib/auth.ts의 isApprovedBroker)
+const ROLE_LABEL: Record<UserResponse["role"], UserRole> = {
+  TENANT: "세입자",
+  AGENT: "중개사",
+  ADMIN: "관리자",
+};
+
 // 백엔드 UserResponse → 프론트 도메인 User.
-// role은 TENANT→세입자 / AGENT·ADMIN→중개사, brokerVerification은 응답에 없어 role로 파생.
 // email·provider는 첫 OAuth 계정에서, 프로필 이미지는 직접 올린 것(profileImage)을 우선하고
 // 없으면 소셜 계정 이미지로 대체한다.
 // 미입력 문자열 필드는 빈 문자열로 정규화해 화면에서 null 접근이 나지 않게 한다.
 function toUser(dto: UserResponse): User {
   const account = dto.oauthAccounts?.[0];
-  const isBroker = dto.role === "AGENT" || dto.role === "ADMIN";
 
   return {
     id: dto.userId,
@@ -53,8 +59,7 @@ function toUser(dto: UserResponse): User {
     email: account?.email ?? "",
     phone: dto.phone ?? "",
     profileImageUrl: dto.profileImage || account?.profileImage || undefined,
-    role: isBroker ? "중개사" : "세입자",
-    brokerVerification: isBroker ? "승인 완료" : "미신청",
+    role: ROLE_LABEL[dto.role],
     provider: toAuthProvider(account?.provider),
   };
 }

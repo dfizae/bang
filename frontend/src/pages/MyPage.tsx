@@ -6,10 +6,11 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { ImageIcon, LogOut } from "lucide-react";
+import { CheckCircle2, ImageIcon, LogOut, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import AgentVerificationStatusBadge from "@/components/AgentVerificationStatusBadge";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import {
   Dialog,
@@ -22,13 +23,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isApiError } from "@/api/error";
+import {
+  useCheckLicense,
+  useMyAgentVerification,
+  useSubmitAgentVerification,
+} from "@/hooks/queries/agentVerificationQueries";
 import { useMyPropertyList } from "@/hooks/queries/propertyQueries";
 import { useUpdateProfile } from "@/hooks/queries/userQueries";
 import { useAuthStore } from "@/stores/authStore";
 import { isApprovedBroker } from "@/lib/auth";
-import { formatPrice } from "@/lib/format";
+import { formatDateTime, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { AuthProvider, BrokerVerificationStatus, User } from "@/types";
+import type { AgentVerification, AuthProvider, User } from "@/types";
 
 const PROVIDER_LABEL: Record<AuthProvider, string> = {
   kakao: "카카오",
@@ -57,7 +63,7 @@ function IdentityRail({ user }: { user: User }) {
           </p>
         </div>
       </div>
-      <BrokerVerificationPanel user={user} />
+      <AgentVerificationPanel user={user} />
     </aside>
   );
 }
@@ -288,141 +294,342 @@ function ProfileEditForm({ user, onDone }: { user: User; onDone: () => void }) {
   );
 }
 
-const BROKER_VERIFICATION_DESCRIPTION: Record<
-  BrokerVerificationStatus,
-  string
-> = {
-  미신청:
-    "중개업등록번호와 증빙 서류를 제출하면 관리자 확인 후 중개사 계정으로 전환됩니다.",
-  "심사 중":
-    "제출하신 서류를 관리자가 확인하고 있습니다. 승인이 완료되면 중개사 계정으로 전환됩니다.",
-  "승인 완료": "중개사 인증이 완료된 계정입니다.",
-  반려: "제출하신 신청이 반려되었습니다. 아래 사유를 확인하고 다시 신청해 주세요.",
-};
+// 신청 요약·조회 결과에서 반복되는 "라벨 / 값" 한 줄
+function OfficeInfoRow({ label, value }: { label: string; value?: string }) {
+  if (!value) {
+    return null;
+  }
 
-const BROKER_VERIFICATION_BADGE_VARIANT: Record<
-  BrokerVerificationStatus,
-  "default" | "secondary" | "destructive"
-> = {
-  미신청: "secondary",
-  "심사 중": "secondary",
-  "승인 완료": "default",
-  반려: "destructive",
-};
+  return (
+    <div className="flex gap-2 text-xs">
+      <dt className="w-14 shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 flex-1 break-words">{value}</dd>
+    </div>
+  );
+}
 
 // 중개사 인증 — 등록번호·서류 제출 후 관리자 수동 승인, 신원 레일에 배치
-function BrokerVerificationPanel({ user }: { user: User }) {
+function AgentVerificationPanel({ user }: { user: User }) {
   const [applyOpen, setApplyOpen] = useState(false);
+  const {
+    data: verification,
+    isPending,
+    isError,
+    refetch,
+  } = useMyAgentVerification();
 
   return (
     <div className="border-t pt-5">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">중개사 인증</h2>
-        {user.brokerVerification !== "미신청" && (
-          <Badge
-            variant={BROKER_VERIFICATION_BADGE_VARIANT[user.brokerVerification]}
-          >
-            {user.brokerVerification}
-          </Badge>
+        {verification && (
+          <AgentVerificationStatusBadge status={verification.status} />
         )}
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {BROKER_VERIFICATION_DESCRIPTION[user.brokerVerification]}
-      </p>
-      {user.brokerVerification === "반려" &&
-        user.brokerVerificationRejectReason && (
-          <p className="mt-2 rounded-lg bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-            반려 사유: {user.brokerVerificationRejectReason}
+      {isPending ? (
+        <div className="mt-3 flex flex-col gap-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      ) : isError ? (
+        <div className="mt-2 flex flex-col items-start gap-3">
+          <p className="text-sm text-muted-foreground">
+            인증 상태를 불러오지 못했어요.
           </p>
-        )}
-      {(user.brokerVerification === "미신청" ||
-        user.brokerVerification === "반려") && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={() => setApplyOpen(true)}
-        >
-          {user.brokerVerification === "반려" ? "다시 신청" : "인증 신청"}
-        </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            다시 시도
+          </Button>
+        </div>
+      ) : !verification ? (
+        <>
+          <p className="mt-2 text-sm text-muted-foreground">
+            중개업등록번호와 증빙 서류를 제출하면 관리자 확인 후 중개사 계정으로
+            전환됩니다.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => setApplyOpen(true)}
+          >
+            인증 신청
+          </Button>
+        </>
+      ) : (
+        <VerificationDetail
+          user={user}
+          verification={verification}
+          onReapply={() => setApplyOpen(true)}
+        />
       )}
-      <BrokerVerificationDialog open={applyOpen} onOpenChange={setApplyOpen} />
+      <AgentVerificationDialog open={applyOpen} onOpenChange={setApplyOpen} />
     </div>
   );
 }
 
-function BrokerVerificationDialog({
+// 신청 이력이 있는 계정의 상태별 안내 — 심사 중 / 승인 완료 / 반려
+function VerificationDetail({
+  user,
+  verification,
+  onReapply,
+}: {
+  user: User;
+  verification: AgentVerification;
+  onReapply: () => void;
+}) {
+  if (verification.status === "PENDING") {
+    return (
+      <>
+        <p className="mt-2 text-sm text-muted-foreground">
+          제출하신 서류를 관리자가 확인하고 있습니다. 승인되면 중개사 계정으로
+          전환됩니다.
+        </p>
+        <dl className="mt-3 flex flex-col gap-1.5 rounded-lg bg-muted/60 p-3">
+          <OfficeInfoRow label="등록번호" value={verification.licenseNumber} />
+          <OfficeInfoRow label="사무소" value={verification.officeName} />
+          <OfficeInfoRow
+            label="신청일"
+            value={formatDateTime(verification.submittedAt)}
+          />
+        </dl>
+      </>
+    );
+  }
+
+  if (verification.status === "APPROVED") {
+    return (
+      <>
+        <p className="mt-2 text-sm text-muted-foreground">
+          중개사 인증이 완료된 계정입니다.
+        </p>
+        <dl className="mt-3 flex flex-col gap-1.5 rounded-lg bg-muted/60 p-3">
+          <OfficeInfoRow label="등록번호" value={verification.licenseNumber} />
+          <OfficeInfoRow label="사무소" value={verification.officeName} />
+          <OfficeInfoRow label="대표" value={verification.brokerName} />
+          <OfficeInfoRow
+            label="승인일"
+            value={formatDateTime(verification.reviewedAt)}
+          />
+        </dl>
+        {!isApprovedBroker(user) && <ApplyBrokerRoleButton />}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="mt-2 text-sm text-muted-foreground">
+        제출하신 서류로는 자격을 확인하지 못했습니다. 등록번호와 서류를 다시
+        확인한 뒤 신청해 주세요.
+      </p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={onReapply}>
+        다시 신청
+      </Button>
+    </>
+  );
+}
+
+// 승인은 서버 role 변경으로 반영되는데, 승인 시점에 열려 있던 세션은 아직 옛 role을 들고 있다.
+// 몰래 고치지 않고 사용자가 누르는 버튼으로 세션을 다시 맞춘다
+function ApplyBrokerRoleButton() {
+  const refreshUser = useAuthStore((state) => state.refreshUser);
+
+  const [error, refreshAction, isPending] = useActionState(async () => {
+    try {
+      await refreshUser();
+      return null;
+    } catch (refreshError) {
+      return isApiError(refreshError)
+        ? refreshError.message
+        : "권한을 반영하지 못했습니다. 잠시 후 다시 시도해주세요";
+    }
+  }, null);
+
+  return (
+    <form action={refreshAction} className="mt-3">
+      <Button type="submit" size="sm" variant="outline" disabled={isPending}>
+        {isPending ? "반영 중..." : "중개사 기능 사용하기"}
+      </Button>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </form>
+  );
+}
+
+// 인증 신청 — 등록번호를 먼저 조회해 사무소 정보를 확인시킨 뒤 서류를 받는다.
+// 잘못된 번호로 신청했다가 반려되는 왕복을 신청 전에 끊는 것이 목적
+function AgentVerificationDialog({
   open,
   onOpenChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const applyBrokerVerification = useAuthStore(
-    (state) => state.applyBrokerVerification,
-  );
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const {
+    mutateAsync: checkLicense,
+    data: licenseCheck,
+    isPending: isChecking,
+    error: checkError,
+    reset: resetCheck,
+  } = useCheckLicense();
+  const { mutateAsync: submitVerification } = useSubmitAgentVerification();
+  // 조회한 번호와 제출하는 번호가 어긋나지 않도록, 번호를 고치면 조회 결과를 버린다
+  const verifiedLicense =
+    licenseCheck?.valid && licenseCheck.licenseNumber === licenseNumber.trim()
+      ? licenseCheck
+      : null;
 
-  const [error, submitAction, isPending] = useActionState(
+  const closeDialog = () => {
+    onOpenChange(false);
+    setLicenseNumber("");
+    resetCheck();
+  };
+
+  const handleCheck = async () => {
+    const trimmed = licenseNumber.trim();
+    if (!trimmed) {
+      return;
+    }
+    try {
+      await checkLicense(trimmed);
+    } catch {
+      // 조회 실패는 checkError로 화면에 표시된다
+    }
+  };
+
+  const [submitError, submitAction, isSubmitting] = useActionState(
     async (_prev: string | null, formData: FormData) => {
-      const registrationNumber = String(
-        formData.get("registrationNumber"),
-      ).trim();
-      const document = formData.get("document");
-      if (!registrationNumber) {
-        return "중개업등록번호를 입력해주세요";
+      if (!verifiedLicense) {
+        return "중개업등록번호를 먼저 조회해주세요";
       }
+      const document = formData.get("document");
       if (!(document instanceof File) || document.size === 0) {
         return "중개사 증빙 서류를 첨부해주세요";
       }
       try {
-        await applyBrokerVerification({
-          registrationNumber,
-          documentName: document.name,
+        await submitVerification({
+          licenseNumber: verifiedLicense.licenseNumber,
+          document,
         });
-        onOpenChange(false);
+        closeDialog();
         return null;
-      } catch {
-        return "인증 신청에 실패했습니다. 잠시 후 다시 시도해주세요";
+      } catch (error) {
+        return isApiError(error)
+          ? error.message
+          : "인증 신청에 실패했습니다. 잠시 후 다시 시도해주세요";
       }
     },
     null,
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+    <Dialog open={open} onOpenChange={(next) => !next && closeDialog()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>중개사 인증 신청</DialogTitle>
           <DialogDescription>
-            중개업등록번호와 증빙 서류를 제출하면 관리자가 확인 후 승인합니다.
+            중개업등록번호를 조회해 사무소 정보를 확인한 뒤 증빙 서류를
+            제출합니다.
           </DialogDescription>
         </DialogHeader>
         <form action={submitAction} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-2 text-sm font-medium">
-            중개업등록번호
+          <div className="flex flex-col gap-2">
+            <label htmlFor="licenseNumber" className="text-sm font-medium">
+              중개업등록번호
+            </label>
+            <div className="flex gap-2">
+              <Input
+                id="licenseNumber"
+                name="licenseNumber"
+                placeholder="예) 11110-2026-00001"
+                value={licenseNumber}
+                onChange={(event) => setLicenseNumber(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                disabled={isChecking || licenseNumber.trim().length === 0}
+                onClick={handleCheck}
+              >
+                <Search />
+                {isChecking ? "조회 중..." : "조회"}
+              </Button>
+            </div>
+          </div>
+
+          <div aria-live="polite">
+            {verifiedLicense ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                  <CheckCircle2 className="size-3.5" />
+                  등록번호가 확인되었습니다
+                </p>
+                <p className="mt-2 text-sm font-semibold">
+                  {verifiedLicense.officeName ?? "상호 미확인"}
+                </p>
+                <dl className="mt-2 flex flex-col gap-1.5">
+                  <OfficeInfoRow
+                    label="대표"
+                    value={verifiedLicense.brokerName}
+                  />
+                  <OfficeInfoRow
+                    label="영업상태"
+                    value={verifiedLicense.businessStatus}
+                  />
+                  <OfficeInfoRow
+                    label="주소"
+                    value={verifiedLicense.officeAddress}
+                  />
+                  <OfficeInfoRow
+                    label="전화"
+                    value={verifiedLicense.officePhone}
+                  />
+                </dl>
+              </div>
+            ) : licenseCheck && !licenseCheck.valid ? (
+              <p className="text-sm text-destructive">
+                조회되지 않는 등록번호입니다. 번호를 다시 확인해주세요.
+              </p>
+            ) : checkError ? (
+              <p className="text-sm text-destructive">
+                {isApiError(checkError)
+                  ? checkError.message
+                  : "등록번호를 조회하지 못했습니다. 잠시 후 다시 시도해주세요"}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                조회한 사무소 정보가 본인의 중개사무소와 같은지 확인한 뒤
+                신청해주세요.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="document" className="text-sm font-medium">
+              증빙 서류
+            </label>
             <Input
-              name="registrationNumber"
-              placeholder="예) 11110-2026-00001"
+              id="document"
+              name="document"
+              type="file"
+              accept="image/*,.pdf"
+              disabled={!verifiedLicense}
             />
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium">
-            증빙 서류
-            <Input name="document" type="file" accept="image/*,.pdf" />
-            <span className="text-xs font-normal text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               중개사무소 등록증 등 자격을 확인할 수 있는 서류 (PDF·이미지)
             </span>
-          </label>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+
+          {submitError && (
+            <p className="text-sm text-destructive">{submitError}</p>
+          )}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={closeDialog}>
               취소
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "신청 중..." : "신청하기"}
+            <Button type="submit" disabled={!verifiedLicense || isSubmitting}>
+              {isSubmitting ? "신청 중..." : "신청하기"}
             </Button>
           </DialogFooter>
         </form>

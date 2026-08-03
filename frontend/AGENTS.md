@@ -1,87 +1,49 @@
 # 프로젝트: 방방봐(방을 방송으로 봐)
 
-## 프로젝트 구조
+## 프로젝트 기본 정보
 
-```
-frontend/
-├── docs/         # 기능 명세서, 코드 품질 기준 등 프로젝트 문서
-├── public/       # 정적 자산 (이미지, 영상, 파비콘 등 빌드 시 그대로 복사되는 파일)
-├── src/
-│   ├── api/         # 백엔드 연동 함수 (도메인별 파일 분리, 현재는 인증 스텁만)
-│   ├── stores/      # 전역 상태를 다루는 Zustand 스토어
-│   ├── data/         # 목데이터, 셀렉트 옵션 등 정적 데이터
-│   ├── lib/          # 도메인에 종속되지 않는 순수 유틸 함수 (포맷팅, 클래스명 병합 등)
-│   ├── components/   # 두 페이지 이상에서 재사용되는 컴포넌트
-│   │   └── ui/         # shadcn/ui로 생성한 프리미티브 컴포넌트
-│   ├── pages/        # 라우트 하나당 파일 하나. 해당 페이지에서만 쓰는 하위 컴포넌트도 같이 둔다
-│   ├── types.ts      # 여러 파일에서 공유하는 도메인 타입
-│   ├── App.tsx       # 라우트 정의
-│   ├── main.tsx      # 엔트리 포인트
-│   └── index.css     # Tailwind 진입점 + 디자인 토큰(색상 변수) 정의
-└── (설정 파일)   # eslint.config.mjs, .prettierrc, tsconfig*.json, vite.config.ts 등
-```
+- 기술 스택은 React 19, Vite, TypeScript, Tailwind CSS 4이다.
+- 패키지 매니저는 `pnpm`만 사용한다.
+- 주요 라이브러리는 React Router, TanStack Query, Zustand, axios, Kakao Map API이며 WebRTC는 브라우저 기본 API를 사용한다.
+- 새 페이지는 `src/pages/`에 만들고 라우트는 `src/App.tsx`에 등록한다.
+- 여러 페이지에서 재사용하는 컴포넌트는 `src/components/`에 둔다. 페이지에서만 사용하는 작은 하위 컴포넌트는 해당 페이지 파일 가까이에 둔다.
+- shadcn/ui 컴포넌트를 우선 사용한다. 없는 컴포넌트만 `src/components/ui/`에 추가하고 shadcn의 `data-slot`, `cva` 패턴을 따른다.
 
-- 새 페이지는 `src/pages/`에, 라우트는 `src/App.tsx`에 등록한다.
-- 여러 페이지에서 재사용되는 컴포넌트는 `src/components/`, 페이지 전용 하위 컴포넌트는 해당 페이지 파일 안에 로컬로 둔다 (예: `PropertyDetailPage.tsx` 안의 `MemoSection`).
-- shadcn/ui로 없는 컴포넌트만 `src/components/ui/`에 직접 추가하고, 항상 `pnpm dlx shadcn@latest add <component>` 결과 스타일(`data-slot`, `cva` 패턴)을 따른다.
+## 규칙과 문서 적용
 
-## 기술 스택
+- 세부 프론트엔드 규칙은 `.agents/rules/`에 분리되어 있다. 작업 대상 경로에 적용되는 규칙을 먼저 읽고 함께 적용한다.
+- `.claude/rules/`는 Claude용 미러이므로 동일한 규칙을 `AGENTS.md`에 다시 나열하지 않는다.
+- 작업 시작 전에 다음 문서 중 작업과 관련된 문서를 읽는다.
+  - UI 기능과 화면 흐름: `docs/frontend-spec.md`
+  - 코드 품질: `docs/frontend-code-quality.md`
+  - 클린 코드: `docs/frontend_clean_code_guide.md`
+  - API 및 서버 상태: `docs/api-guide.md`
+- 사용자 요청과 프로젝트 문서가 충돌하면 사용자 요청을 우선한다. 문서끼리 충돌하거나 필수 문서를 읽을 수 없으면 임의로 판단하지 말고 그 사실을 보고한다.
+- 기존 디렉토리 구조, 컴포넌트 패턴, 명명 규칙을 먼저 확인하고 명확한 이유 없이 새로운 패턴이나 별도 아키텍처를 도입하지 않는다.
 
-- **언어**: TypeScript
-- **프레임워크**: React 19
-- **스타일링**: tailwind 4
-- **패키지매니저**: pnpm
-- **라이브러리**
-  - **API**: axios
-  - **라우팅**: React Router
-  - **서버 상태 캐싱**: Tanstack Query
-  - **상태 관리**: Zustand
-  - **지도**: Kakao Map API
-  - **WebRTC**: Javascript의 기본 RTC
+## 작업 범위와 승인
 
-## 필수 참조
+- 명세에 없는 사용자 기능, 페이지, 버튼, 필터, 설정을 임의로 추가하지 않는다.
+- 로딩, 빈 상태, 오류, 비활성화, 접근성, 반응형 처리와 요청 중 중복 실행 방지는 기능 완성에 필요한 기본 상태로 간주한다.
+- 요청 범위와 관련 없는 리팩터링, 파일 이동, 이름 변경, 포맷 변경을 함께 수행하지 않는다.
+- 전체 구현을 요청받으면 섹션 단위로 구현하고 검증하되 중간 승인을 기다리지 않고 요청된 범위까지 완료한다. 사용자가 단계별 검토를 요청한 경우에만 각 단계에서 확인을 기다린다.
+- 파일 삭제, 대규모 파일 이동, 공개 API 변경, 설정 파일의 광범위한 변경 전에는 확인을 요청한다.
+- 새로운 패키지 설치, 기존 패키지 제거, 주요 버전 변경 전에는 확인을 요청한다.
 
-- 모든 UI 작업 전에 docs/frontend-spec.md의 기능명세서를 먼저 읽고 따를 것
-- 디자인 토큰: 블루 계열 신뢰 톤, Tailwind 테마 변수 사용
-- 스택: React + Vite + TypeScript + Tailwind (패키지 매니저: pnpm)
+## 디자인 방향
 
-## 작업 규칙
+- UI는 블루 계열의 신뢰 톤과 slate 계열의 텍스트·서피스를 유지하고 `src/index.css`의 Tailwind 테마 변수를 사용한다.
+- 색상 토큰을 추가하거나 변경하면 `:root`와 `.dark` 양쪽을 함께 정의한다.
+- IBM Plex Sans KR을 사용하고 한글 텍스트에는 `word-break: keep-all`을 유지한다.
+- 제목은 `font-semibold`, 본문은 `font-normal`을 기본으로 하며 크기는 `text-sm`, `text-base`, `text-lg`, `text-xl`, `text-2xl` 단계를 우선 사용한다. 랜딩 히어로와 섹션 제목은 예외로 한다.
+- 간격은 4px 그리드, 카드는 `rounded-xl`, 기본 그림자는 `shadow-sm`까지 사용한다.
+- 그라데이션 남용, 세 가지 이상의 포인트 컬러, 이모지 아이콘을 피하고 아이콘은 `lucide-react`를 사용한다.
+- UI 작업 전 `.agents/skills/frontend-design/SKILL.md`와 `.agents/skills/ui-ux-pro-max/SKILL.md`를 읽고 적용한다.
 
-- 섹션 단위로 구현하고, 각 섹션 완료 후 확인 요청
-- 명세서에 없는 기능은 임의로 추가하지 말 것
-- 코드 작업 시 eslint 규칙을 준수하도록 할 것
-- 스타일링은 무조건 Tailwind CSS 방식으로
-- 모든 프론트엔드 코드 작성/수정/리뷰 시 docs/frontend-code-quality의 4가지 기준에 충족하도록 할 것
-- 파일 삭제 전 확인 요청
-- 커스텀 훅, 함수, 파일 내 컴포넌트 구분을 위한 용도를 제외하고 주석을 달지 말 것
-- 여러 컴포넌트에 재사용 가능한 함수는 `lib`, 커스텀 훅은 `hooks` 디렉토리에 분리해서 작성할 것
-- 예외가 발생할 가능성이 있는 부분에서 단순히 `console.log`로 출력하지 않고, 원활한 사용자 경험을 위한 적절한 에러 처리를 진행할 것
-- 리포트에 가정치 금지. 실측 데이터만, 모르면 TBD 표시
-- 상태를 `useState`로 직접 관리하기 전에, 같은 문제를 해결하는 React 최신 hook이 있는지 먼저 검토한다. 있으면 그쪽을 우선한다
-  - 폼 제출 중 로딩 상태: `useState`로 `isLoading` 플래그를 만들지 말고 `useActionState`가 반환하는 `isPending`, 또는 폼 하위 컴포넌트라면 `useFormStatus`의 `pending`을 사용
-  - 서버 요청 완료 전 UI 선반영(찜하기 토글, 메모 추가 등): 별도 임시 state로 흉내내지 말고 `useOptimistic`으로 낙관적 업데이트 처리
-  - 폼 액션의 성공/실패 결과 상태: `useState` + `try/catch` 대신 `useActionState`의 반환값(state, formAction)을 사용
-  - 그 외에도 `use()`, `useTransition` 등으로 더 간단히 표현되는 패턴이면 그것을 우선 검토하고, 마땅한 최신 hook이 없을 때만 `useState`/`useEffect` 조합으로 구현한다
+## 완료와 보고
 
-## API 통신 규칙
-
-- 서버 통신은 반드시 `src/api/client.ts`의 fetcher(`api.get` 등)를 통해서만 한다. 컴포넌트에서 axios·도메인 API 함수 직접 호출 금지
-- 서버 데이터는 TanStack Query로만 다룬다. `useEffect` + `useState`로 fetch 결과를 보관하지 말 것
-- 쿼리 키는 각 도메인의 `xxxKeys` 팩토리로만 생성하고, 새 쿼리는 `queryOptions` 팩토리로 정의한다
-- 상세 가이드: docs/api-guide.md — 새 도메인 API를 추가할 때 이 문서의 3단계(도메인 함수 → 쿼리 파일 → 훅 사용) 절차를 따를 것
-
-## 디자인 규칙
-
-- UI 컴포넌트는 shadcn/ui를 우선 사용 (Button, Card, Badge, Input, Select, Dialog, Tabs)
-- shadcn/ui에 없는 것만 직접 구현하고, 스타일은 Tailwind 유틸리티만 사용
-- 컬러: primary는 블루 계열(신뢰 톤), 텍스트·서피스는 slate 계열. CSS 변수(테마)로 정의
-  - 라이트(배경 화이트)가 기본, 다크(slate-900 배경)는 GNB 토글로 전환 (ThemeContext + `.dark` 클래스)
-  - 색상 추가·변경 시 index.css의 `:root`와 `.dark` 블록 양쪽에 정의할 것
-- 폰트: IBM Plex Sans KR (index.html Google Fonts 로드, `--font-sans`) — design.pen과 동일. 한글 블록에는 word-break: keep-all 유지
-- 타이포: 제목 font-semibold, 본문 font-normal, 크기 단계는 text-sm/base/lg/xl/2xl만 사용 (랜딩 히어로·섹션 제목은 예외)
-- 간격은 4px 그리드(p-2/4/6/8), 카드 radius는 rounded-xl, 그림자는 shadow-sm까지만
-  - 예외: 랜딩의 히어로 데모 카드·리포트 목업은 블루 틴티드 섀도우(rgba(22,93,252,…)) 사용 — 검정 그림자 금지
-- 금지: 그라데이션 남발, 3색 이상 포인트 컬러, 이모지 아이콘(lucide-react 아이콘 사용)
-- 레이아웃: 랜딩 섹션은 인접 섹션과 다른 패턴 사용(3등분 균일 카드 금지 — Bento·타임라인 등). 상세 원칙은 supanova-design-skill/redesign-skill/SKILL.md 참조
-- UI 작업 시작 전 frontend-design 스킬(설치돼 있다면)을 로드해 미적 방향을 적용할 것
-
+- 코드 변경 후 `package.json`에 정의된 관련 검증 명령을 확인해 실행한다. 현재 기본 검증 명령은 `pnpm lint`와 `pnpm build`이다.
+- 검증 명령이 없거나 실행할 수 없으면 성공했다고 표현하지 않고, 실행하지 못한 항목과 이유를 보고한다.
+- 오류를 해결하기 위해 ESLint 규칙, TypeScript 설정, 테스트를 비활성화하거나 완화하지 않는다.
+- 테스트 통과를 목적으로 기존 테스트를 삭제하거나 검증 수준을 낮추지 않는다.
+- 작업 리포트에는 코드나 실행 결과로 확인한 사실만 작성하고, 확인할 수 없는 수치나 결과는 추정하지 않고 `TBD`로 표시한다.

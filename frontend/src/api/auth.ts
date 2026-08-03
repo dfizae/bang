@@ -1,8 +1,7 @@
 import { api } from "@/api/client";
-import type { AuthProvider, BrokerVerificationRequest, User } from "@/types";
+import type { AuthProvider, User } from "@/types";
 
-// AUTH-01 소셜 로그인 / AUTH-02 로그아웃 (/api/auth/*).
-// 중개사 인증은 백엔드 미완성이라 아직 목 스텁으로 남겨둔다.
+// AUTH-01 소셜 로그인 / AUTH-02 로그아웃 (/api/auth/*)
 
 // AUTH-01 소셜 로그인 응답 — accessToken은 authStore가 localStorage에 저장한다.
 interface TokenResponse {
@@ -46,7 +45,6 @@ const MOCK_BROKERS: Array<Omit<User, "provider">> = [
     email: "broker@example.com",
     phone: "010-9876-5432",
     role: "중개사",
-    brokerVerification: "승인 완료",
   },
   {
     id: 2,
@@ -56,7 +54,6 @@ const MOCK_BROKERS: Array<Omit<User, "provider">> = [
     email: "broker2@example.com",
     phone: "010-2468-1357",
     role: "중개사",
-    brokerVerification: "승인 완료",
   },
 ];
 
@@ -68,7 +65,6 @@ const MOCK_TENANT: Omit<User, "provider"> = {
   email: "tenant@example.com",
   phone: "010-1234-5678",
   role: "세입자",
-  brokerVerification: "미신청",
 };
 
 // ADMIN-01~03 심사용 관리자 계정 — 실제 관리자 인증 연동 전 개발용
@@ -80,7 +76,6 @@ const MOCK_ADMIN: Omit<User, "provider"> = {
   email: "admin@bangbangbwa.com",
   phone: "010-0000-0000",
   role: "관리자",
-  brokerVerification: "미신청",
 };
 
 // 로그인 페이지의 개발용 테스트 계정 버튼에 노출할 중개사 목록
@@ -107,18 +102,4 @@ export async function loginWithMockTenant(): Promise<User> {
 // 개발용 — 인증 심사 페이지 테스트를 위한 관리자 로그인
 export async function loginWithMockAdmin(): Promise<User> {
   return { ...MOCK_ADMIN, provider: "google" };
-}
-
-// TODO: 중개사 인증 신청 API 연동 (등록번호·서류 업로드, 관리자 수동 승인)
-export async function applyBrokerVerification(
-  user: User,
-  request: BrokerVerificationRequest,
-): Promise<User> {
-  void request;
-  // 재신청 시 이전 반려 사유는 초기화
-  return {
-    ...user,
-    brokerVerification: "심사 중",
-    brokerVerificationRejectReason: undefined,
-  };
 }
