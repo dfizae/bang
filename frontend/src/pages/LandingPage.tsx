@@ -775,6 +775,7 @@ function getActiveSnapIndex() {
 
 function LandingPage() {
   const reducedMotion = useReducedMotion();
+  const isDesktop = useIsDesktop();
   // 요청 섹션의 투어 장면 확대 모달 (모바일 썸네일 전용)
   const [tourPhotoOpen, setTourPhotoOpen] = useState(false);
   const activeSnapIndex = useSyncExternalStore(
@@ -910,12 +911,16 @@ function LandingPage() {
         </ul>
       </nav>
 
-      {/* 풀블리드 히어로 — 흰 여백 없이 화면을 꽉 채우고,
-          데스크톱은 GNB(h-14)를 뺀 첫 화면 전체를 차지한다 */}
-      <section data-snap="hero" className="lg:h-[calc(100svh-3.5rem)]">
-        <div className="relative isolate overflow-hidden bg-slate-900 lg:h-full">
+      {/* 풀블리드 히어로 — 흰 여백 없이 GNB를 뺀 첫 화면 전체를 차지하고,
+          모바일 탭바(sm 미만)가 있는 화면에서는 탭바 위까지만 채운다 */}
+      <section
+        data-snap="hero"
+        className="h-[calc(100svh-var(--nav-h)-var(--tabbar-h))] sm:h-[calc(100svh-var(--nav-h))]"
+      >
+        <div className="relative isolate h-full overflow-hidden bg-slate-900">
           <video
-            src="/hero-tour.mp4"
+            key={isDesktop ? "desktop" : "mobile"}
+            src={isDesktop ? "/hero-tour.mp4" : "/hero-tour-mobile.mp4"}
             poster="/hero-poster.webp"
             autoPlay
             muted
@@ -927,9 +932,9 @@ function LandingPage() {
           {/* 영상 전체를 고르게 덮는 반투명 검정 오버레이 — 텍스트 대비 확보 */}
           <div className="absolute inset-0 bg-slate-950/60" />
 
-          {/* 모바일은 배지·제목만 영상 위 정중앙에 남기고, 설명·버튼·검색은 lg부터 보인다 */}
+          {/* 모바일은 배지·제목을 정중앙에, 검색을 하단에 두고 설명·버튼은 lg부터 보인다 */}
           {/* 배경은 풀블리드지만 콘텐츠는 기존 폭으로 가운데 정렬 */}
-          <div className="relative z-10 mx-auto grid min-h-[360px] w-full max-w-[1180px] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:h-full lg:grid-cols-[1.15fr_.85fr] lg:justify-items-stretch lg:gap-7 lg:p-10">
+          <div className="relative z-10 mx-auto grid h-full w-full max-w-[1180px] grid-rows-[1fr_auto] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:grid-cols-[1.15fr_.85fr] lg:grid-rows-1 lg:justify-items-stretch lg:gap-7 lg:p-10">
             <motion.div
               className="max-w-2xl text-center text-white lg:text-left"
               variants={HERO_STAGGER}
@@ -984,34 +989,9 @@ function LandingPage() {
               </motion.div>
             </motion.div>
 
-            <div className="mx-auto hidden w-full max-w-md space-y-4 lg:block">
+            <div className="mx-auto w-full max-w-md space-y-4">
               <HeroSearch />
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 모바일 퀵 액션 — 매물 둘러보기 카드가 검색을 품는다 (lg는 히어로가 검색을 품는다) */}
-      <section className="px-4 pt-1 pb-2 sm:px-6 lg:hidden">
-        <div className="mx-auto max-w-[1180px] rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                <MapPin className="size-4" />
-              </span>
-              <span className="font-semibold">매물 둘러보기</span>
-            </div>
-            <Link
-              to="/properties"
-              className="flex items-center gap-1 text-sm font-medium text-primary"
-            >
-              전체 보기 <ArrowRight className="size-4" />
-            </Link>
-          </div>
-          {/* 흰 카드 위에서 검색창이 묻히지 않게 연회색 바탕으로 구분한다.
-              radius는 HeroSearch 프레임(rounded-[1.5rem])과 동일하게 맞춘다 */}
-          <div className="rounded-[1.5rem] bg-muted">
-            <HeroSearch />
           </div>
         </div>
       </section>
