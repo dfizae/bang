@@ -83,21 +83,6 @@ function subscribeToWindowScroll(onChange: () => void) {
   };
 }
 
-function getRunwayStep(runway: HTMLElement | null, stepCount: number) {
-  if (!runway) {
-    return 0;
-  }
-  const range = runway.offsetHeight - window.innerHeight;
-  if (range <= 0) {
-    return 0;
-  }
-  const progress = Math.min(
-    1,
-    Math.max(0, -runway.getBoundingClientRect().top / range),
-  );
-  return Math.min(stepCount - 1, Math.floor(progress * stepCount));
-}
-
 type FlowStepState = "static" | "done" | "active" | "todo";
 
 function getStepState(index: number, activeStep: number): FlowStepState {
@@ -114,9 +99,11 @@ interface FlowStepProps {
   index: number;
   isLast: boolean;
   state: FlowStepState;
+  onSelect: (index: number) => void;
 }
 
-// 이용 흐름의 한 단계 — 활성이면 확대 + 번호 글로우, 완료면 체크로 전환
+// 이용 흐름의 한 단계 — 커서를 올리면 활성화되고, 활성이면 확대 + 번호 글로우,
+// 지나온 단계는 체크로 전환
 function FlowStep({
   icon: Icon,
   title,
@@ -124,6 +111,7 @@ function FlowStep({
   index,
   isLast,
   state,
+  onSelect,
 }: FlowStepProps) {
   const isActive = state === "active";
   const isDone = state === "done";
@@ -131,73 +119,81 @@ function FlowStep({
 
   return (
     <motion.li
-      className={cn("flex origin-left gap-4", !isLast && "lg:flex-1")}
+      className={cn("flex origin-left", !isLast && "lg:flex-1")}
       animate={{ scale: isActive ? 1.04 : 1, opacity: isTodo ? 0.4 : 1 }}
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
     >
-      <div className="flex flex-col items-center">
-        <motion.span
-          className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold",
-            isTodo
-              ? "bg-muted text-muted-foreground"
-              : "bg-primary text-primary-foreground",
+      <button
+        type="button"
+        onClick={() => onSelect(index)}
+        onPointerEnter={() => onSelect(index)}
+        onFocus={() => onSelect(index)}
+        aria-current={isActive ? "step" : undefined}
+        className="flex w-full cursor-pointer gap-4 text-left"
+      >
+        <span className="flex flex-col items-center">
+          <motion.span
+            className={cn(
+              "grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold",
+              isTodo
+                ? "bg-muted text-muted-foreground"
+                : "bg-primary text-primary-foreground",
+            )}
+            animate={
+              isActive
+                ? {
+                    boxShadow: [
+                      "0 0 0 0 rgba(22,93,252,0.45)",
+                      "0 0 0 12px rgba(22,93,252,0)",
+                    ],
+                  }
+                : { boxShadow: "0 0 0 0 rgba(22,93,252,0)" }
+            }
+            transition={
+              isActive
+                ? { duration: 1.4, repeat: Infinity, ease: "easeOut" }
+                : { duration: 0.2 }
+            }
+          >
+            {isDone ? <Check className="size-4" /> : index + 1}
+          </motion.span>
+          {!isLast && (
+            <span className="relative w-0.5 flex-1 overflow-hidden bg-border">
+              <motion.span
+                className="absolute inset-0 origin-top bg-primary"
+                animate={{ scaleY: isDone ? 1 : 0 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+              />
+            </span>
           )}
-          animate={
-            isActive
-              ? {
-                  boxShadow: [
-                    "0 0 0 0 rgba(22,93,252,0.45)",
-                    "0 0 0 12px rgba(22,93,252,0)",
-                  ],
-                }
-              : { boxShadow: "0 0 0 0 rgba(22,93,252,0)" }
-          }
-          transition={
-            isActive
-              ? { duration: 1.4, repeat: Infinity, ease: "easeOut" }
-              : { duration: 0.2 }
-          }
-        >
-          {isDone ? <Check className="size-4" /> : index + 1}
-        </motion.span>
-        {!isLast && (
-          <span className="relative w-0.5 flex-1 overflow-hidden bg-border">
-            <motion.span
-              className="absolute inset-0 origin-top bg-primary"
-              animate={{ scaleY: isDone ? 1 : 0 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            />
+        </span>
+        <span className={cn("block", !isLast && "pb-7")}>
+          <span className="flex items-center gap-2">
+            <Icon className="size-4 text-primary" />
+            <span className={cn("font-semibold", isActive && "text-primary")}>
+              {title}
+            </span>
           </span>
-        )}
-      </div>
-      <div className={isLast ? "" : "pb-7"}>
-        <div className="flex items-center gap-2">
-          <Icon className="size-4 text-primary" />
-          <h3 className={cn("font-semibold", isActive && "text-primary")}>
-            {title}
-          </h3>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
+          <span className="mt-1 block text-sm text-muted-foreground">
+            {description}
+          </span>
+        </span>
+      </button>
     </motion.li>
   );
 }
 
-// 스크롤 진행에 따라 단계가 순차 하이라이트되는 이용 흐름 섹션
-// (lg 이상은 sticky 스크롤텔링, 미만은 단계 버튼 탭 전환)
+// 커서를 올린 단계가 하이라이트되는 이용 흐름 섹션
+// (lg 이상은 단계 hover/focus 전환, 미만은 단계 버튼 탭 전환)
 function FlowSection() {
-  const runwayRef = useRef<HTMLElement>(null);
   const isDesktop = useIsDesktop();
   const reducedMotion = useReducedMotion();
   const animated = isDesktop && !reducedMotion;
+  const [desktopStep, setDesktopStep] = useState(0);
   const [mobileStep, setMobileStep] = useState(0);
   const [targetStep, setTargetStep] = useState(0);
   const [stepDirection, setStepDirection] = useState(1);
   const [hopMs, setHopMs] = useState(FLOW_STEP_HOP_MS);
-  const activeStep = useSyncExternalStore(subscribeToWindowScroll, () =>
-    isDesktop ? getRunwayStep(runwayRef.current, FLOW_STEPS.length) : 0,
-  );
   const [ActiveIcon, activeTitle, activeDescription] = FLOW_STEPS[targetStep];
 
   const selectMobileStep = (index: number) => {
@@ -229,11 +225,10 @@ function FlowSection() {
   return (
     <section
       id="how"
-      ref={runwayRef}
       data-snap="flow"
-      className="border-y bg-muted/40 lg:h-[280vh]"
+      className="border-y bg-muted/40 lg:h-[calc(100svh-3.5rem)]"
     >
-      <div className="lg:sticky lg:top-14 lg:flex lg:h-[calc(100svh-3.5rem)] lg:items-center">
+      <div className="lg:flex lg:h-full lg:items-center">
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-0">
           <div className="mb-8">
             <p className="text-sm font-bold tracking-wider text-primary">
@@ -254,7 +249,8 @@ function FlowSection() {
                   description={description}
                   index={index}
                   isLast={index === FLOW_STEPS.length - 1}
-                  state={animated ? getStepState(index, activeStep) : "static"}
+                  state={animated ? getStepState(index, desktopStep) : "static"}
+                  onSelect={setDesktopStep}
                 />
               ))}
             </ol>
@@ -735,7 +731,7 @@ const GNB_HEIGHT_PX = 56;
 const SNAP_LOCK_MS = 700;
 
 // 데스크톱 휠 스냅 목적지 — 각 스냅 섹션 상단(GNB 높이 보정)과
-// 이용 흐름 러너웨이 내부의 단계 경계, 푸터가 보이는 문서 맨 아래를 모은다
+// 푸터가 보이는 문서 맨 아래를 모은다
 function getSnapTargets() {
   const maxScroll = Math.max(
     0,
@@ -749,20 +745,6 @@ function getSnapTargets() {
     const top =
       section.getBoundingClientRect().top + window.scrollY - GNB_HEIGHT_PX;
     targets.add(Math.min(maxScroll, Math.max(0, Math.round(top))));
-
-    const range = section.offsetHeight - window.innerHeight;
-    if (section.dataset.snap !== "flow" || range <= 0) {
-      return;
-    }
-    for (let step = 1; step < FLOW_STEPS.length; step += 1) {
-      targets.add(
-        Math.min(
-          maxScroll,
-          Math.round(top + GNB_HEIGHT_PX + (range * step) / FLOW_STEPS.length) +
-            2,
-        ),
-      );
-    }
   });
   return [...targets].sort((a, b) => a - b);
 }
@@ -846,8 +828,8 @@ function LandingPage() {
     return () => window.removeEventListener("wheel", handleWheel);
   }, [reducedMotion]);
 
-  // 도트 내비 점프 — 브라우저 기본 smooth는 먼 거리에서 sticky 구간에 오래 머물러
-  // 끊겨 보이므로, 거리와 무관하게 한 호흡에 지나가는 시간 기반 스크롤을 쓴다
+  // 도트 내비 점프 — 브라우저 기본 smooth는 먼 거리에서 시간이 늘어져 끊겨
+  // 보이므로, 거리와 무관하게 한 호흡에 지나가는 시간 기반 스크롤을 쓴다
   const scrollAnimRef = useRef(0);
   useEffect(() => () => cancelAnimationFrame(scrollAnimRef.current), []);
 
@@ -872,54 +854,14 @@ function LandingPage() {
       return;
     }
 
-    // 이용 흐름 러너웨이의 핀 구간은 화면이 멈춰 보이므로,
-    // 그 구간의 이동 비중을 15%로 낮춰 순식간에 스쳐 지나가게 한다
-    const dir = Math.sign(delta);
-    const lo = Math.min(start, top);
-    const hi = Math.max(start, top);
-    const flow = document.querySelector<HTMLElement>('[data-snap="flow"]');
-    const flowRange = flow ? flow.offsetHeight - window.innerHeight : 0;
-    const flowTop =
-      flow && flowRange > 0
-        ? flow.getBoundingClientRect().top + window.scrollY
-        : hi + GNB_HEIGHT_PX;
-    const pinStart = Math.min(hi, Math.max(lo, flowTop - GNB_HEIGHT_PX));
-    const pinEnd = Math.min(hi, Math.max(lo, flowTop + flowRange));
-    const ascending = [
-      { from: lo, to: pinStart, weight: 1 },
-      { from: pinStart, to: pinEnd, weight: 0.15 },
-      { from: pinEnd, to: hi, weight: 1 },
-    ]
-      .map((s) => ({ len: s.to - s.from, weight: s.weight }))
-      .filter((s) => s.len > 0);
-    const segments = dir > 0 ? ascending : ascending.reverse();
-    const effectiveTotal = segments.reduce(
-      (sum, s) => sum + s.len * s.weight,
-      0,
-    );
-
-    const scrollYAt = (eased: number) => {
-      let remaining = eased * effectiveTotal;
-      let position = start;
-      for (const s of segments) {
-        const segEffective = s.len * s.weight;
-        if (remaining <= segEffective) {
-          return position + dir * (remaining / s.weight);
-        }
-        remaining -= segEffective;
-        position += dir * s.len;
-      }
-      return top;
-    };
-
-    const duration = Math.min(900, 450 + effectiveTotal * 0.07);
+    const duration = Math.min(900, 450 + Math.abs(delta) * 0.07);
     const startedAt = performance.now();
     snapLockUntilRef.current = startedAt + duration + 150;
     const tick = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / duration);
       const eased =
         progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2;
-      window.scrollTo(0, progress >= 1 ? top : scrollYAt(eased));
+      window.scrollTo(0, progress >= 1 ? top : start + delta * eased);
       if (progress < 1) {
         scrollAnimRef.current = requestAnimationFrame(tick);
       }
