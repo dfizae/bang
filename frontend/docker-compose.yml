@@ -6,15 +6,18 @@ services:
       # 호스트 nginx(TLS 종료)가 이 포트로 proxy_pass 합니다. 외부 직접 노출 없음.
       - "127.0.0.1:3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/ || exit 1"]
+      # 컨테이너 안에서 localhost는 ::1로 풀리는데 nginx는 IPv4만 listen 하므로
+      # 127.0.0.1로 찔러야 한다 (localhost로 두면 정상인데도 unhealthy가 된다)
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 5s
 
   # WebRTC TURN 중계 서버. 셀룰러(CGNAT)·사내망(대칭 NAT) 구간에서 P2P가 막힐 때
-  # 미디어를 중계한다. 설정은 ../infra/coturn 에 있고, 처음 띄우기 전에
-  # `bash ../infra/coturn/setup.sh`로 external-ip를 채워야 한다.
+  # 미디어를 중계한다. 설정은 ../infra/coturn 에 있고, 처음 띄우기 전에(그리고 EC2 IP가
+  # 바뀔 때마다) `bash ../infra/coturn/setup.sh`로 external-ip를 채워야 한다.
+  # setup.sh는 설정만 채우고 기동은 하지 않는다 — 컨테이너는 여기서 한 번만 뜬다.
   coturn:
     image: coturn/coturn:4.6
     container_name: coturn
