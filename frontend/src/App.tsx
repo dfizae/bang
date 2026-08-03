@@ -21,6 +21,7 @@ import PropertyFormPage from "@/pages/PropertyFormPage";
 import PropertyListPage from "@/pages/PropertyListPage";
 import ReservationLivePage from "@/pages/ReservationLivePage";
 import ReservationPage from "@/pages/ReservationPage";
+import ReportDetailPage from "@/pages/ReportDetailPage";
 import BookingPage from "@/pages/BookingPage";
 import SavedPropertiesPage from "@/pages/SavedPropertiesPage";
 import {
@@ -160,6 +161,14 @@ function App() {
         <Route
           path="/reservations"
           element={<RequireAuth>{() => <ReservationPage />}</RequireAuth>}
+        />
+        <Route
+          path="/reports/:reportId"
+          element={
+            <RequireAuth>
+              {(user) => <ReportDetailPage user={user} />}
+            </RequireAuth>
+          }
         />
         <Route
           path="/booking/:id"

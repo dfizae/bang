@@ -5,16 +5,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { type ChecklistItemInput } from "@/api/checklist";
-// 체크리스트 API가 backend에 머지되기 전이라 목데이터를 쓰는 중이다.
-// 서버에 붙일 때는 아래 import를 "@/api/checklist"로 되돌리면 된다.
 import {
+  type ChecklistItemInput,
   createChecklistItem,
   deleteChecklistItem,
   getChecklist,
   updateChecklistItem,
   updateChecklistItemStatus,
-} from "@/data/mockChecklistApi";
+} from "@/api/checklist";
 import type { Checklist, ChecklistItemStatus } from "@/types";
 
 export { MAX_CHECKLIST_ITEMS } from "@/api/checklist";

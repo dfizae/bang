@@ -40,7 +40,12 @@ import {
 import { useChecklist } from "@/hooks/queries/checklistQueries";
 import { useMeetingDetail } from "@/hooks/queries/meetingQueries";
 import { usePropertyDetail } from "@/hooks/queries/propertyQueries";
-import { useLiveSession } from "@/hooks/queries/sessionQueries";
+import {
+  useEndSession,
+  useLiveSession,
+  useUploadSessionCapture,
+} from "@/hooks/queries/sessionQueries";
+import { useSavePropertyReport } from "@/hooks/queries/reportQueries";
 import {
   type SessionCapture,
   useSessionCaptures,
@@ -48,6 +53,7 @@ import {
 import { useInspectionStream } from "@/hooks/useInspectionStream";
 import { useVideoAspect } from "@/hooks/useVideoAspect";
 import { formatMeetingDateTime, getMeetingDateTime } from "@/lib/meeting";
+import { evaluateChecklist } from "@/lib/reportStorage";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import type { UserRole } from "@/types";
@@ -420,8 +426,6 @@ function ReservationLivePage() {
   const remoteAspect = useVideoAspect(remoteVideoRef);
   const localAspect = useVideoAspect(localVideoRef);
 
-  const leaveSession = () => navigate("/reservations");
-
   const meetingId = Number(slug);
   const { data: meeting } = useMeetingDetail(
     Number.isInteger(meetingId) ? meetingId : undefined,
@@ -493,6 +497,66 @@ function ReservationLivePage() {
   const { captures, capture, removeCapture } = useSessionCaptures(
     primaryTile.videoRef,
   );
+  const { mutateAsync: saveReport, isPending: isSavingReport } =
+    useSavePropertyReport(user?.id ?? -1);
+  const { mutateAsync: endLiveSession, isPending: isEndingSession } =
+    useEndSession(meetingId);
+  const { mutateAsync: uploadCapture, isPending: isUploadingCapture } =
+    useUploadSessionCapture();
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  const leaveSession = async () => {
+    if (!user || !meeting || !property || !session) {
+      setReportError(
+        "리포트 정보를 준비하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      );
+      return;
+    }
+
+    setReportError(null);
+    try {
+      const reportCaptures = await Promise.all(
+        captures.map(async (item) => {
+          const image = await fetch(item.url).then((response) =>
+            response.blob(),
+          );
+          const stored = await uploadCapture({
+            sessionId: session.sessionId,
+            image,
+          });
+          return {
+            id: String(stored.captureId),
+            createdAt: stored.capturedAt,
+            imageUrl: stored.imageUrl,
+          };
+        }),
+      );
+      const endedSession = await endLiveSession(session.sessionId);
+      await saveReport({
+        reportId: `${user.id}:${endedSession.sessionId}`,
+        userId: user.id,
+        meetingId: meeting.meetingId,
+        propertyId: property.propertyId,
+        propertyTitle: property.title,
+        propertyAddress: `${property.sigungu} ${property.dong}`.trim(),
+        transactionType: property.transactionType,
+        roomType: property.roomType,
+        deposit: property.deposit,
+        monthlyRent: property.monthlyRent,
+        createdAt: endedSession.endedAt,
+        checklistItems,
+        captures: reportCaptures,
+        evaluation: evaluateChecklist(checklistItems),
+      });
+      navigate("/mypage?section=reports", {
+        state: { reportSaved: true },
+      });
+    } catch {
+      setReportError(
+        "리포트를 저장하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해 주세요.",
+      );
+    }
+  };
 
   // RTC-06 AI 하자 검수 — 원본 화질(송출 전) 스트림을 가진 중개사 쪽에서만 돌린다
   const { candidateCount } = useInspectionStream(
@@ -973,8 +1037,24 @@ function ReservationLivePage() {
             <Button variant="outline" onClick={() => setLeaveOpen(false)}>
               계속 점검하기
             </Button>
-            <Button variant="destructive" onClick={leaveSession}>
-              <PhoneOff /> 나가기
+            {reportError && (
+              <p role="alert" className="text-sm text-destructive">
+                {reportError}
+              </p>
+            )}
+            <Button
+              variant="destructive"
+              disabled={isSavingReport || isEndingSession || isUploadingCapture}
+              onClick={() => void leaveSession()}
+            >
+              {isSavingReport || isEndingSession || isUploadingCapture ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <PhoneOff />
+              )}
+              {isSavingReport || isEndingSession || isUploadingCapture
+                ? "종료 처리 중..."
+                : "종료하고 저장"}
             </Button>
           </DialogFooter>
         </DialogContent>
