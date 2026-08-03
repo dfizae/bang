@@ -36,7 +36,11 @@ import {
   useReviewAgentVerification,
 } from "@/hooks/queries/agentVerificationQueries";
 import { downloadFileFromUrl } from "@/lib/file";
-import { formatDateTime, formatFileSize } from "@/lib/format";
+import {
+  formatDateTime,
+  formatFileSize,
+  parseServerDateTime,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   AgentVerification,
@@ -74,7 +78,7 @@ function isVerificationStatus(
 
 function isDocumentExpired(document: VerificationDocument) {
   return document.urlExpiresAt
-    ? new Date(document.urlExpiresAt).getTime() <= Date.now()
+    ? parseServerDateTime(document.urlExpiresAt).getTime() <= Date.now()
     : false;
 }
 

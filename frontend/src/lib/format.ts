@@ -63,12 +63,22 @@ const dateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
   hour12: false,
 });
 
+const UTC_OFFSET_PATTERN = /(?:Z|[+-]\d{2}:?\d{2})$/;
+
+// 서버는 UTC 시각을 오프셋 없이 보낸다("2026-08-03T00:26:34.979211").
+// 그대로 new Date에 넣으면 브라우저가 로컬 시각으로 읽어 KST 기준 9시간 어긋난다
+export function parseServerDateTime(isoDateTime: string) {
+  const needsUtcMarker =
+    isoDateTime.includes("T") && !UTC_OFFSET_PATTERN.test(isoDateTime);
+  return new Date(needsUtcMarker ? `${isoDateTime}Z` : isoDateTime);
+}
+
 // ISO 시각을 "2026. 08. 01. 14:30"으로 — 값이 없거나 깨진 경우 대시로 대체한다
 export function formatDateTime(isoDateTime?: string) {
   if (!isoDateTime) {
     return "—";
   }
-  const date = new Date(isoDateTime);
+  const date = parseServerDateTime(isoDateTime);
   return Number.isNaN(date.getTime()) ? "—" : dateTimeFormatter.format(date);
 }
 
