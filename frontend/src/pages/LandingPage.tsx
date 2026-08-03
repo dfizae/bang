@@ -131,7 +131,7 @@ function FlowStep({
 
   return (
     <motion.li
-      className="flex origin-left gap-4"
+      className={cn("flex origin-left gap-4", !isLast && "lg:flex-1")}
       animate={{ scale: isActive ? 1.04 : 1, opacity: isTodo ? 0.4 : 1 }}
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
     >
@@ -230,11 +230,12 @@ function FlowSection() {
     <section
       id="how"
       ref={runwayRef}
+      data-snap="flow"
       className="border-y bg-muted/40 lg:h-[280vh]"
     >
       <div className="lg:sticky lg:top-14 lg:flex lg:h-[calc(100svh-3.5rem)] lg:items-center">
-        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-0">
-          <div className="mb-10">
+        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-0">
+          <div className="mb-8">
             <p className="text-sm font-bold tracking-wider text-primary">
               이용 흐름
             </p>
@@ -243,8 +244,8 @@ function FlowSection() {
             </h2>
           </div>
 
-          <div className="grid gap-16 lg:grid-cols-[1fr_420px] lg:items-start">
-            <ol className="hidden lg:block">
+          <div className="grid gap-16 lg:grid-cols-[1fr_340px]">
+            <ol className="hidden lg:flex lg:flex-col">
               {FLOW_STEPS.map(([Icon, title, description], index) => (
                 <FlowStep
                   key={title}
@@ -368,7 +369,7 @@ function FlowSection() {
               </AnimatePresence>
             </div>
 
-            <div className="rounded-2xl border bg-card p-6 shadow-[0_16px_40px_-8px_rgba(22,93,252,0.15)]">
+            <div className="rounded-2xl border bg-card p-6 shadow-[0_16px_40px_-8px_rgba(22,93,252,0.15)] lg:flex lg:min-h-[calc(100svh-22rem)] lg:flex-col lg:justify-center">
               <div className="flex items-center justify-between gap-3">
                 <strong className="text-[15px] font-semibold">
                   AI 검수 리포트 — 역삼 래미안
@@ -379,7 +380,7 @@ function FlowSection() {
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className="grid h-[72px] place-items-center rounded-md bg-muted"
+                    className="grid h-[72px] place-items-center rounded-md bg-muted lg:h-24"
                   >
                     <ImageIcon className="size-[18px] text-muted-foreground" />
                   </div>
@@ -474,7 +475,7 @@ function FeatureVisual({ index }: { index: number }) {
           loading="lazy"
           className="absolute inset-0 h-full w-full scale-110 object-cover object-[70%_60%]"
         />
-        <div className="absolute inset-0 bg-slate-950/20" />
+        <div className="absolute inset-0 bg-black/20" />
         <motion.div
           className="absolute top-[22%] left-[15%] h-[28%] w-[30%] rounded border-2 border-amber-300 shadow-[0_0_0_1px_rgba(15,23,42,.35)]"
           initial={reducedMotion ? false : { opacity: 0, scale: 0.9 }}
@@ -550,9 +551,9 @@ function FeaturesSection() {
   };
 
   return (
-    <section>
-      <div>
-        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+    <section data-snap="features" className="lg:h-[calc(100svh-3.5rem)]">
+      <div className="lg:flex lg:h-full lg:items-center">
+        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-0">
           <div className="max-w-2xl">
             <p className="text-sm font-semibold tracking-wider text-primary">
               핵심 기능
@@ -562,7 +563,7 @@ function FeaturesSection() {
             </h2>
           </div>
 
-          <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_368px]">
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_340px]">
             <div className="grid grid-cols-3 gap-2 lg:hidden">
               {FEATURES.map(({ icon: Icon, label }, index) => (
                 <button
@@ -610,7 +611,7 @@ function FeaturesSection() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  "relative isolate flex flex-col gap-6 overflow-hidden rounded-2xl border bg-card p-7 sm:flex-row sm:items-center",
+                  "relative isolate flex flex-col gap-6 overflow-hidden rounded-2xl border bg-card p-7 sm:flex-row sm:items-center lg:p-6",
                   FEATURE_TINTED_SHADOW,
                 )}
               >
@@ -633,7 +634,7 @@ function FeaturesSection() {
                   </p>
                 </div>
                 <motion.div
-                  className="relative z-10 h-[220px] w-full shrink-0 overflow-hidden rounded-xl bg-slate-900 sm:h-[260px] sm:w-[300px] lg:w-[380px]"
+                  className="relative z-10 h-[220px] w-full shrink-0 overflow-hidden rounded-xl bg-slate-900 sm:h-[260px] sm:w-[300px] lg:h-[230px] lg:w-[320px]"
                   initial={reducedMotion ? false : { scale: 0.96 }}
                   animate={{ scale: 1 }}
                   transition={{
@@ -677,7 +678,7 @@ function FeaturesSection() {
                         damping: 26,
                       }}
                       className={cn(
-                        "relative overflow-hidden rounded-xl border bg-card p-5 text-left transition-[border-color,box-shadow,background-color] duration-300",
+                        "relative overflow-hidden rounded-xl border bg-card p-5 text-left transition-[border-color,box-shadow,background-color] duration-300 lg:p-4",
                         isActive
                           ? cn(
                               "border-primary/50 bg-primary/[0.025]",
@@ -730,17 +731,247 @@ function FeaturesSection() {
   );
 }
 
+const GNB_HEIGHT_PX = 56;
+const SNAP_LOCK_MS = 700;
+
+// 데스크톱 휠 스냅 목적지 — 각 스냅 섹션 상단(GNB 높이 보정)과
+// 이용 흐름 러너웨이 내부의 단계 경계, 푸터가 보이는 문서 맨 아래를 모은다
+function getSnapTargets() {
+  const maxScroll = Math.max(
+    0,
+    document.documentElement.scrollHeight - window.innerHeight,
+  );
+  const targets = new Set<number>([maxScroll]);
+  document.querySelectorAll<HTMLElement>("[data-snap]").forEach((section) => {
+    if (section.offsetParent === null) {
+      return;
+    }
+    const top =
+      section.getBoundingClientRect().top + window.scrollY - GNB_HEIGHT_PX;
+    targets.add(Math.min(maxScroll, Math.max(0, Math.round(top))));
+
+    const range = section.offsetHeight - window.innerHeight;
+    if (section.dataset.snap !== "flow" || range <= 0) {
+      return;
+    }
+    for (let step = 1; step < FLOW_STEPS.length; step += 1) {
+      targets.add(
+        Math.min(
+          maxScroll,
+          Math.round(top + GNB_HEIGHT_PX + (range * step) / FLOW_STEPS.length) +
+            2,
+        ),
+      );
+    }
+  });
+  return [...targets].sort((a, b) => a - b);
+}
+
+const SNAP_SECTIONS = [
+  { id: "hero", label: "메인" },
+  { id: "features", label: "핵심 기능" },
+  { id: "flow", label: "이용 흐름" },
+  { id: "request", label: "투어 요청" },
+] as const;
+
+// 사이드 도트 내비의 활성 섹션 — 뷰포트 세로 중앙이 걸쳐 있는 섹션
+function getActiveSnapIndex() {
+  const middle = window.scrollY + window.innerHeight / 2;
+  let active = 0;
+  SNAP_SECTIONS.forEach(({ id }, index) => {
+    const section = document.querySelector<HTMLElement>(`[data-snap="${id}"]`);
+    if (!section) {
+      return;
+    }
+    const top = section.getBoundingClientRect().top + window.scrollY;
+    if (top <= middle) {
+      active = index;
+    }
+  });
+  return active;
+}
+
 function LandingPage() {
   const reducedMotion = useReducedMotion();
   // 요청 섹션의 투어 장면 확대 모달 (모바일 썸네일 전용)
   const [tourPhotoOpen, setTourPhotoOpen] = useState(false);
+  const activeSnapIndex = useSyncExternalStore(
+    subscribeToWindowScroll,
+    getActiveSnapIndex,
+  );
+  // 데스크톱 풀페이지 스냅 — 휠 한 칸에 스냅 목적지를 한 칸씩 이동한다.
+  // 휠에만 개입하고 키보드·스크롤바·모바일 터치 스크롤은 그대로 둔다
+  const snapLockUntilRef = useRef(0);
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (
+        e.deltaY === 0 ||
+        e.ctrlKey ||
+        !window.matchMedia(DESKTOP_QUERY).matches
+      ) {
+        return;
+      }
+      // 검색 드롭다운·모달 내부의 휠 스크롤은 건드리지 않는다
+      const target = e.target instanceof Element ? e.target : null;
+      if (
+        target?.closest(
+          "[data-radix-popper-content-wrapper],[data-slot='select-content'],[data-slot='dialog-content']",
+        )
+      ) {
+        return;
+      }
+      e.preventDefault();
+
+      // 스무스 스크롤 중에 이어지는 휠(관성)은 삼켜 한 칸씩만 이동하게 한다
+      const now = performance.now();
+      if (now < snapLockUntilRef.current) {
+        return;
+      }
+      const targets = getSnapTargets();
+      const dest =
+        e.deltaY > 0
+          ? targets.find((t) => t > window.scrollY + 8)
+          : [...targets].reverse().find((t) => t < window.scrollY - 8);
+      if (dest === undefined) {
+        return;
+      }
+      snapLockUntilRef.current = now + SNAP_LOCK_MS;
+      window.scrollTo({
+        top: dest,
+        behavior: reducedMotion ? "auto" : "smooth",
+      });
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [reducedMotion]);
+
+  // 도트 내비 점프 — 브라우저 기본 smooth는 먼 거리에서 sticky 구간에 오래 머물러
+  // 끊겨 보이므로, 거리와 무관하게 한 호흡에 지나가는 시간 기반 스크롤을 쓴다
+  const scrollAnimRef = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(scrollAnimRef.current), []);
+
+  const snapToSection = (id: (typeof SNAP_SECTIONS)[number]["id"]) => {
+    const section = document.querySelector<HTMLElement>(`[data-snap="${id}"]`);
+    if (!section) {
+      return;
+    }
+    const top = Math.max(
+      0,
+      section.getBoundingClientRect().top + window.scrollY - GNB_HEIGHT_PX,
+    );
+    if (reducedMotion) {
+      window.scrollTo({ top });
+      return;
+    }
+
+    cancelAnimationFrame(scrollAnimRef.current);
+    const start = window.scrollY;
+    const delta = top - start;
+    if (delta === 0) {
+      return;
+    }
+
+    // 이용 흐름 러너웨이의 핀 구간은 화면이 멈춰 보이므로,
+    // 그 구간의 이동 비중을 15%로 낮춰 순식간에 스쳐 지나가게 한다
+    const dir = Math.sign(delta);
+    const lo = Math.min(start, top);
+    const hi = Math.max(start, top);
+    const flow = document.querySelector<HTMLElement>('[data-snap="flow"]');
+    const flowRange = flow ? flow.offsetHeight - window.innerHeight : 0;
+    const flowTop =
+      flow && flowRange > 0
+        ? flow.getBoundingClientRect().top + window.scrollY
+        : hi + GNB_HEIGHT_PX;
+    const pinStart = Math.min(hi, Math.max(lo, flowTop - GNB_HEIGHT_PX));
+    const pinEnd = Math.min(hi, Math.max(lo, flowTop + flowRange));
+    const ascending = [
+      { from: lo, to: pinStart, weight: 1 },
+      { from: pinStart, to: pinEnd, weight: 0.15 },
+      { from: pinEnd, to: hi, weight: 1 },
+    ]
+      .map((s) => ({ len: s.to - s.from, weight: s.weight }))
+      .filter((s) => s.len > 0);
+    const segments = dir > 0 ? ascending : ascending.reverse();
+    const effectiveTotal = segments.reduce(
+      (sum, s) => sum + s.len * s.weight,
+      0,
+    );
+
+    const scrollYAt = (eased: number) => {
+      let remaining = eased * effectiveTotal;
+      let position = start;
+      for (const s of segments) {
+        const segEffective = s.len * s.weight;
+        if (remaining <= segEffective) {
+          return position + dir * (remaining / s.weight);
+        }
+        remaining -= segEffective;
+        position += dir * s.len;
+      }
+      return top;
+    };
+
+    const duration = Math.min(900, 450 + effectiveTotal * 0.07);
+    const startedAt = performance.now();
+    snapLockUntilRef.current = startedAt + duration + 150;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased =
+        progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2;
+      window.scrollTo(0, progress >= 1 ? top : scrollYAt(eased));
+      if (progress < 1) {
+        scrollAnimRef.current = requestAnimationFrame(tick);
+      }
+    };
+    scrollAnimRef.current = requestAnimationFrame(tick);
+  };
 
   return (
     <main className="overflow-x-clip bg-background">
-      <section className="px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-        {/* transform-gpu + 자식들의 개별 rounded — 비디오 합성 레이어가 애니메이션·
-            스크롤 중 부모의 둥근 클립을 놓쳐 모서리가 각지는 렌더링 버그 방어 */}
-        <div className="relative isolate mx-auto max-w-[1180px] transform-gpu overflow-hidden rounded-2xl bg-slate-900 shadow-xl shadow-[#165dfc]/10 lg:min-h-[440px] lg:rounded-[1.75rem]">
+      {/* 사이드 도트 내비 — 현재 섹션은 소세지형으로 늘어나고, 누르면 해당 섹션으로 점프 */}
+      <nav
+        aria-label="섹션 바로가기"
+        className="fixed top-1/2 right-4 z-40 hidden -translate-y-1/2 lg:block"
+      >
+        <ul className="flex flex-col items-center gap-1.5">
+          {SNAP_SECTIONS.map(({ id, label }, index) => {
+            const isActive = activeSnapIndex === index;
+            const onDark = activeSnapIndex === 0;
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => snapToSection(id)}
+                  title={label}
+                  aria-label={`${label} 섹션으로 이동`}
+                  aria-current={isActive ? "true" : undefined}
+                  className="group flex w-5 cursor-pointer justify-center py-0.5"
+                >
+                  <span
+                    className={cn(
+                      "block w-2.5 rounded-full transition-all duration-300",
+                      isActive
+                        ? "h-8 bg-primary"
+                        : cn(
+                            "h-2.5",
+                            onDark
+                              ? "bg-white/40 group-hover:bg-white/70"
+                              : "bg-foreground/20 group-hover:bg-foreground/40",
+                          ),
+                    )}
+                  />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* 풀블리드 히어로 — 흰 여백 없이 화면을 꽉 채우고,
+          데스크톱은 GNB(h-14)를 뺀 첫 화면 전체를 차지한다 */}
+      <section data-snap="hero" className="lg:h-[calc(100svh-3.5rem)]">
+        <div className="relative isolate overflow-hidden bg-slate-900 lg:h-full">
           <video
             src="/hero-tour.mp4"
             poster="/hero-poster.webp"
@@ -749,14 +980,14 @@ function LandingPage() {
             loop
             playsInline
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full rounded-2xl object-cover opacity-95 lg:rounded-[1.75rem]"
+            className="absolute inset-0 h-full w-full object-cover opacity-95"
           />
-          {/* 중앙이 밝고 가장자리로 갈수록 어두워지는 비네트 — 영상은 살리면서
-              가장자리 대비로 텍스트 가독성을 확보한다 */}
-          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(30,64,175,.18)_0%,rgba(15,23,42,.48)_62%,rgba(15,23,42,.86)_100%)] lg:rounded-[1.75rem]" />
+          {/* 영상 전체를 고르게 덮는 반투명 검정 오버레이 — 텍스트 대비 확보 */}
+          <div className="absolute inset-0 bg-slate-950/60" />
 
           {/* 모바일은 배지·제목만 영상 위 정중앙에 남기고, 설명·버튼·검색은 lg부터 보인다 */}
-          <div className="relative z-10 grid min-h-[360px] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:min-h-[440px] lg:grid-cols-[1.15fr_.85fr] lg:justify-items-stretch lg:gap-7 lg:p-10">
+          {/* 배경은 풀블리드지만 콘텐츠는 기존 폭으로 가운데 정렬 */}
+          <div className="relative z-10 mx-auto grid min-h-[360px] w-full max-w-[1180px] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:h-full lg:grid-cols-[1.15fr_.85fr] lg:justify-items-stretch lg:gap-7 lg:p-10">
             <motion.div
               className="max-w-2xl text-center text-white lg:text-left"
               variants={HERO_STAGGER}
@@ -765,11 +996,11 @@ function LandingPage() {
             >
               <motion.p
                 variants={HERO_RISE}
-                className="mb-4 text-sm font-medium text-blue-200"
+                className="mb-4 text-sm font-medium text-blue-200 lg:mb-5 lg:text-base"
               >
                 세입자와 중개사를 잇는 1:1 라이브 투어
               </motion.p>
-              <h1 className="text-4xl leading-[1.12] font-bold tracking-[-0.04em] sm:text-5xl">
+              <h1 className="text-4xl leading-[1.12] font-bold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
                 <motion.span variants={HERO_RISE} className="block">
                   방송으로 방을 봐
                 </motion.span>
@@ -782,14 +1013,14 @@ function LandingPage() {
               </h1>
               <motion.p
                 variants={HERO_RISE}
-                className="mt-5 hidden max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg lg:block"
+                className="mt-6 hidden max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg lg:block lg:text-xl"
               >
                 중개사가 현장에서 비춰주는 화면을 보며 체크리스트로 꼼꼼하게
                 비교하고 결정하세요.
               </motion.p>
               <motion.div
                 variants={HERO_RISE}
-                className="mt-7 hidden flex-wrap gap-3 lg:flex"
+                className="mt-9 hidden flex-wrap gap-3 lg:flex"
               >
                 <Button
                   size="lg"
@@ -835,7 +1066,9 @@ function LandingPage() {
               전체 보기 <ArrowRight className="size-4" />
             </Link>
           </div>
-          <div className="rounded-2xl bg-slate-900 p-2">
+          {/* 흰 카드 위에서 검색창이 묻히지 않게 연회색 바탕으로 구분한다.
+              radius는 HeroSearch 프레임(rounded-[1.5rem])과 동일하게 맞춘다 */}
+          <div className="rounded-[1.5rem] bg-muted">
             <HeroSearch />
           </div>
         </div>
@@ -845,7 +1078,10 @@ function LandingPage() {
 
       <FlowSection />
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+      <section
+        data-snap="request"
+        className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:grid lg:h-[calc(100svh-3.5rem)] lg:max-w-5xl lg:content-center lg:px-8 lg:py-0"
+      >
         <div className="overflow-hidden rounded-3xl bg-[#eef5ff]">
           <div className="grid lg:grid-cols-[.8fr_1.2fr] lg:items-stretch">
             <div className="flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-12">
@@ -935,7 +1171,7 @@ function LandingPage() {
               </div>
             </div>
 
-            <div className="relative hidden overflow-hidden lg:block lg:min-h-[430px]">
+            <div className="relative hidden overflow-hidden lg:block lg:min-h-[max(430px,calc(100svh-15.5rem))]">
               <img
                 src="/hero-poster.webp"
                 alt="라이브 투어 중 보고 싶은 공간을 요청하는 매물 내부"
