@@ -25,9 +25,30 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import HeroSearch from "@/components/HeroSearch";
-import { usePropertyList } from "@/hooks/queries/propertyQueries";
 import { cn } from "@/lib/utils";
+
+// 히어로 문구 스태거 — 배지 → 제목 1행 → 방방봐 순서로 떠오른다
+const HERO_STAGGER = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.14, delayChildren: 0.05 } },
+} as const;
+
+const HERO_RISE = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: "easeOut" },
+  },
+} as const;
 
 const FLOW_STEPS = [
   [CalendarCheck, "예약", "원하는 매물의 화상 투어 일정을 잡아요"],
@@ -711,13 +732,15 @@ function FeaturesSection() {
 
 function LandingPage() {
   const reducedMotion = useReducedMotion();
-  // 총 건수만 쓰므로 첫 페이지 1건만 받아온다 (실패해도 문구만 건수 없이 나간다)
-  const { data: properties } = usePropertyList({}, { page: 0, size: 1 });
+  // 요청 섹션의 투어 장면 확대 모달 (모바일 썸네일 전용)
+  const [tourPhotoOpen, setTourPhotoOpen] = useState(false);
 
   return (
     <main className="overflow-x-clip bg-background">
       <section className="px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-        <div className="relative isolate mx-auto max-w-[1180px] overflow-hidden rounded-2xl bg-slate-900 shadow-xl shadow-[#165dfc]/10 lg:min-h-[440px] lg:rounded-[1.75rem]">
+        {/* transform-gpu + 자식들의 개별 rounded — 비디오 합성 레이어가 애니메이션·
+            스크롤 중 부모의 둥근 클립을 놓쳐 모서리가 각지는 렌더링 버그 방어 */}
+        <div className="relative isolate mx-auto max-w-[1180px] transform-gpu overflow-hidden rounded-2xl bg-slate-900 shadow-xl shadow-[#165dfc]/10 lg:min-h-[440px] lg:rounded-[1.75rem]">
           <video
             src="/hero-tour.mp4"
             poster="/hero-poster.webp"
@@ -726,25 +749,48 @@ function LandingPage() {
             loop
             playsInline
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover opacity-95"
+            className="absolute inset-0 h-full w-full rounded-2xl object-cover opacity-95 lg:rounded-[1.75rem]"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,.78)_0%,rgba(30,64,175,.48)_48%,rgba(56,189,248,.12)_100%)] lg:bg-[linear-gradient(90deg,rgba(15,23,42,.82)_0%,rgba(30,64,175,.58)_42%,rgba(125,211,252,.08)_100%)]" />
+          {/* 중앙이 밝고 가장자리로 갈수록 어두워지는 비네트 — 영상은 살리면서
+              가장자리 대비로 텍스트 가독성을 확보한다 */}
+          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(30,64,175,.18)_0%,rgba(15,23,42,.48)_62%,rgba(15,23,42,.86)_100%)] lg:rounded-[1.75rem]" />
 
-          <div className="relative z-10 grid items-center gap-6 px-6 py-8 sm:p-9 lg:min-h-[440px] lg:grid-cols-[1.15fr_.85fr] lg:gap-7 lg:p-10">
-            <div className="max-w-2xl text-white">
-              <p className="mb-4 text-sm font-medium text-blue-200">
+          {/* 모바일은 배지·제목만 영상 위 정중앙에 남기고, 설명·버튼·검색은 lg부터 보인다 */}
+          <div className="relative z-10 grid min-h-[360px] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:min-h-[440px] lg:grid-cols-[1.15fr_.85fr] lg:justify-items-stretch lg:gap-7 lg:p-10">
+            <motion.div
+              className="max-w-2xl text-center text-white lg:text-left"
+              variants={HERO_STAGGER}
+              initial={reducedMotion ? false : "hidden"}
+              animate="visible"
+            >
+              <motion.p
+                variants={HERO_RISE}
+                className="mb-4 text-sm font-medium text-blue-200"
+              >
                 세입자와 중개사를 잇는 1:1 라이브 투어
-              </p>
+              </motion.p>
               <h1 className="text-4xl leading-[1.12] font-bold tracking-[-0.04em] sm:text-5xl">
-                방송으로 방을 봐
-                <br />
-                <span className="text-blue-400">방방봐</span>
+                <motion.span variants={HERO_RISE} className="block">
+                  방송으로 방을 봐
+                </motion.span>
+                <motion.span
+                  variants={HERO_RISE}
+                  className="block text-primary"
+                >
+                  방방봐
+                </motion.span>
               </h1>
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+              <motion.p
+                variants={HERO_RISE}
+                className="mt-5 hidden max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg lg:block"
+              >
                 중개사가 현장에서 비춰주는 화면을 보며 체크리스트로 꼼꼼하게
                 비교하고 결정하세요.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-3">
+              </motion.p>
+              <motion.div
+                variants={HERO_RISE}
+                className="mt-7 hidden flex-wrap gap-3 lg:flex"
+              >
                 <Button
                   size="lg"
                   className="h-13 rounded-full px-7 text-base"
@@ -762,12 +808,35 @@ function LandingPage() {
                 >
                   <a href="#how">이용 방법 알아보기</a>
                 </Button>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
 
-            <div className="mx-auto w-full max-w-md space-y-4">
+            <div className="mx-auto hidden w-full max-w-md space-y-4 lg:block">
               <HeroSearch />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 모바일 퀵 액션 — 매물 둘러보기 카드가 검색을 품는다 (lg는 히어로가 검색을 품는다) */}
+      <section className="px-4 pt-1 pb-2 sm:px-6 lg:hidden">
+        <div className="mx-auto max-w-[1180px] rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                <MapPin className="size-4" />
+              </span>
+              <span className="font-semibold">매물 둘러보기</span>
+            </div>
+            <Link
+              to="/properties"
+              className="flex items-center gap-1 text-sm font-medium text-primary"
+            >
+              전체 보기 <ArrowRight className="size-4" />
+            </Link>
+          </div>
+          <div className="rounded-2xl bg-slate-900 p-2">
+            <HeroSearch />
           </div>
         </div>
       </section>
@@ -787,47 +856,92 @@ function LandingPage() {
                 보고 싶은 곳을
                 <br /> 현장에 바로 요청하세요
               </h2>
-              <p className="mt-4 max-w-md leading-relaxed text-slate-600">
+              {/* 좁은 화면에서는 1·2·3 예시가 설명을 대신하므로 문단을 접는다 */}
+              <p className="mt-4 hidden max-w-md leading-relaxed text-slate-600 lg:block">
                 정해진 영상만 보는 투어가 아닙니다. 창밖 전망부터 수납장
                 안쪽까지, 궁금한 공간을 중개사에게 실시간으로 요청하세요.
               </p>
-              <div className="mt-6 space-y-2 text-sm text-slate-700">
-                {[
-                  "창밖 전망을 천천히 보여주세요",
-                  "싱크대 아래쪽도 확인할게요",
-                  "붙박이장 깊이를 보여주세요",
-                ].map((request, index) => (
-                  <motion.p
-                    key={request}
-                    initial={reducedMotion ? false : { opacity: 0, x: -10 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true, amount: 0.6 }}
-                    transition={{ delay: index * 0.12, duration: 0.3 }}
-                    className="flex items-center gap-2"
-                  >
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-white">
-                      {index + 1}
-                    </span>
-                    {request}
-                  </motion.p>
-                ))}
-              </div>
-              <div className="mt-7">
-                <Button className="rounded-full px-6" asChild>
-                  <Link to="/properties">
-                    라이브 투어 시작하기 <ArrowRight />
-                  </Link>
-                </Button>
+              {/* 모바일은 리스트·버튼 옆 빈 공간에 투어 장면을 나란히 두어
+                  이미지 높이만큼 섹션이 길어지지 않게 한다 */}
+              <div className="mt-6 flex items-end justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {/* 이미지와 나란한 좁은 폭에서도 한 줄로 읽히게 폰트를 줄인다 */}
+                  <div className="space-y-2 text-[11px] text-slate-700 sm:text-sm">
+                    {[
+                      "창밖 전망을 천천히 보여주세요",
+                      "싱크대 아래쪽도 확인할게요",
+                      "붙박이장 깊이를 보여주세요",
+                    ].map((request, index) => (
+                      <motion.p
+                        key={request}
+                        initial={reducedMotion ? false : { opacity: 0, x: -10 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true, amount: 0.6 }}
+                        transition={{ delay: index * 0.12, duration: 0.3 }}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="grid size-4 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-bold text-white sm:size-5 sm:text-[11px]">
+                          {index + 1}
+                        </span>
+                        {request}
+                      </motion.p>
+                    ))}
+                  </div>
+                  <div className="mt-7">
+                    <Button className="rounded-full px-6" asChild>
+                      <Link to="/properties">
+                        라이브 투어 시작하기 <ArrowRight />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+                {/* 요청 마크(1·2·3)가 얹힌 투어 장면 — 누르면 모달로 크게 본다 */}
+                <button
+                  type="button"
+                  onClick={() => setTourPhotoOpen(true)}
+                  aria-label="라이브 투어 장면 크게 보기"
+                  className="relative w-2/5 max-w-60 shrink-0 cursor-pointer overflow-hidden rounded-xl border-2 border-white shadow-md transition-transform hover:scale-[1.03] lg:hidden"
+                >
+                  <img
+                    src="/hero-poster.webp"
+                    alt=""
+                    loading="lazy"
+                    className="w-full"
+                  />
+                  {[
+                    { mark: 1, position: "top-[24%] left-[34%]" },
+                    { mark: 2, position: "right-[18%] bottom-[27%]" },
+                    { mark: 3, position: "bottom-[20%] left-[14%]" },
+                  ].map(({ mark, position }) => (
+                    <motion.span
+                      key={mark}
+                      className={cn(
+                        "absolute grid size-5 place-items-center rounded-full border-2 border-white bg-primary text-[10px] font-bold text-white shadow-lg",
+                        position,
+                      )}
+                      animate={
+                        reducedMotion ? undefined : { scale: [1, 1.12, 1] }
+                      }
+                      transition={{
+                        duration: 1.8,
+                        delay: (mark - 1) * 0.5,
+                        repeat: Infinity,
+                      }}
+                    >
+                      {mark}
+                    </motion.span>
+                  ))}
+                </button>
               </div>
             </div>
 
-            <div className="relative min-h-[340px] overflow-hidden lg:min-h-[430px]">
-            <img
-              src="/hero-poster.webp"
-              alt="라이브 투어 중 보고 싶은 공간을 요청하는 매물 내부"
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <div className="relative hidden overflow-hidden lg:block lg:min-h-[430px]">
+              <img
+                src="/hero-poster.webp"
+                alt="라이브 투어 중 보고 싶은 공간을 요청하는 매물 내부"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-[#eef5ff] via-transparent to-transparent" />
 
               <motion.span
@@ -835,7 +949,14 @@ function LandingPage() {
                 animate={
                   reducedMotion
                     ? undefined
-                    : { scale: [1, 1.12, 1], boxShadow: ["0 4px 12px rgba(22,93,252,.25)", "0 4px 24px rgba(22,93,252,.55)", "0 4px 12px rgba(22,93,252,.25)"] }
+                    : {
+                        scale: [1, 1.12, 1],
+                        boxShadow: [
+                          "0 4px 12px rgba(22,93,252,.25)",
+                          "0 4px 24px rgba(22,93,252,.55)",
+                          "0 4px 12px rgba(22,93,252,.25)",
+                        ],
+                      }
                 }
                 transition={{ duration: 1.8, repeat: Infinity }}
               >
@@ -846,7 +967,14 @@ function LandingPage() {
                 animate={
                   reducedMotion
                     ? undefined
-                    : { scale: [1, 1.12, 1], boxShadow: ["0 4px 12px rgba(22,93,252,.25)", "0 4px 24px rgba(22,93,252,.55)", "0 4px 12px rgba(22,93,252,.25)"] }
+                    : {
+                        scale: [1, 1.12, 1],
+                        boxShadow: [
+                          "0 4px 12px rgba(22,93,252,.25)",
+                          "0 4px 24px rgba(22,93,252,.55)",
+                          "0 4px 12px rgba(22,93,252,.25)",
+                        ],
+                      }
                 }
                 transition={{ duration: 1.8, delay: 0.5, repeat: Infinity }}
               >
@@ -863,6 +991,45 @@ function LandingPage() {
           </div>
         </div>
       </section>
+
+      <Dialog open={tourPhotoOpen} onOpenChange={setTourPhotoOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">라이브 투어 장면</DialogTitle>
+            <DialogDescription className="sr-only">
+              라이브 투어 중 보고 싶은 공간을 요청하는 장면을 크게 봅니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative overflow-hidden rounded-lg bg-slate-900">
+            <img
+              src="/hero-poster.webp"
+              alt="라이브 투어 중 보고 싶은 공간을 요청하는 매물 내부"
+              className="max-h-[60svh] w-full object-contain"
+            />
+            <motion.span
+              className="absolute top-[24%] left-[34%] grid size-8 place-items-center rounded-full border-4 border-white bg-primary text-sm font-bold text-white shadow-lg"
+              animate={reducedMotion ? undefined : { scale: [1, 1.12, 1] }}
+              transition={{ duration: 1.8, repeat: Infinity }}
+            >
+              1
+            </motion.span>
+            <motion.span
+              className="absolute right-[18%] bottom-[27%] grid size-8 place-items-center rounded-full border-4 border-white bg-primary text-sm font-bold text-white shadow-lg"
+              animate={reducedMotion ? undefined : { scale: [1, 1.12, 1] }}
+              transition={{ duration: 1.8, delay: 0.5, repeat: Infinity }}
+            >
+              2
+            </motion.span>
+            <motion.span
+              className="absolute bottom-[20%] left-[14%] grid size-8 place-items-center rounded-full border-4 border-white bg-primary text-sm font-bold text-white shadow-lg"
+              animate={reducedMotion ? undefined : { scale: [1, 1.12, 1] }}
+              transition={{ duration: 1.8, delay: 1, repeat: Infinity }}
+            >
+              3
+            </motion.span>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
