@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   Navigate,
   Route,
@@ -30,7 +30,6 @@ import {
 } from "@/hooks/queries/propertyQueries";
 import { isApprovedBroker } from "@/lib/auth";
 import { useAuthStore } from "@/stores/authStore";
-import type { Memo } from "@/types";
 
 // ADMIN 페이지 가드 — 세션 복원을 기다린 뒤(RequireAuth) 관리자가 아니면 랜딩으로 돌려보낸다.
 // 직접 URL 진입은 복원 전 첫 렌더의 user가 null이라, 기다리지 않으면 관리자도 튕긴다
@@ -44,25 +43,11 @@ function AdminRoute() {
   );
 }
 
-interface MemoActions {
-  add: (propertyId: number, text: string) => void;
-  update: (propertyId: number, memoId: number, text: string) => void;
-  remove: (propertyId: number, memoId: number) => void;
-}
-
 interface DetailRouteProps {
-  memos: Record<number, Memo[]>;
   onReserve: (id: number) => void;
-  onDeleted: (id: number) => void;
-  memoActions: MemoActions;
 }
 
-function DetailRoute({
-  memos,
-  onReserve,
-  onDeleted,
-  memoActions,
-}: DetailRouteProps) {
+function DetailRoute({ onReserve }: DetailRouteProps) {
   const { id: idParam } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,19 +68,13 @@ function DetailRoute({
       // 실패는 상세의 삭제 다이얼로그가 잡아 보여주므로, 성공했을 때만 목록으로 보낸다
       onDelete={async () => {
         await deleteProperty(id);
-        onDeleted(id);
         navigate("/properties", { replace: true });
       }}
-      memos={memos[id] ?? []}
-      onAddMemo={(text) => memoActions.add(id, text)}
-      onUpdateMemo={(memoId, text) => memoActions.update(id, memoId, text)}
-      onDeleteMemo={(memoId) => memoActions.remove(id, memoId)}
     />
   );
 }
 
 function App() {
-  const [memos, setMemos] = useState<Record<number, Memo[]>>({});
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const restoreSession = useAuthStore((state) => state.restoreSession);
@@ -108,38 +87,6 @@ function App() {
   useEffect(() => {
     restoreSession();
   }, [restoreSession]);
-
-  // PROP-09 매물 삭제 후 정리 — 메모는 아직 화면 상태라 지워진 매물의 것을 같이 버린다
-  const forgetPropertyMemos = (id: number) => {
-    setMemos((prev) => {
-      const { [id]: _removed, ...rest } = prev;
-      return rest;
-    });
-  };
-
-  // MEMO-01~03 메모 작성·수정·삭제
-  const memoActions: MemoActions = {
-    add: (propertyId, text) =>
-      setMemos((prev) => ({
-        ...prev,
-        [propertyId]: [
-          ...(prev[propertyId] ?? []),
-          { id: Date.now(), text, createdAt: new Date().toISOString() },
-        ],
-      })),
-    update: (propertyId, memoId, text) =>
-      setMemos((prev) => ({
-        ...prev,
-        [propertyId]: prev[propertyId].map((m) =>
-          m.id === memoId ? { ...m, text } : m,
-        ),
-      })),
-    remove: (propertyId, memoId) =>
-      setMemos((prev) => ({
-        ...prev,
-        [propertyId]: prev[propertyId].filter((m) => m.id !== memoId),
-      })),
-  };
 
   return (
     <>
@@ -207,12 +154,7 @@ function App() {
         <Route
           path="/properties/:id"
           element={
-            <DetailRoute
-              memos={memos}
-              onReserve={(id) => navigate(`/booking/${id}`)}
-              onDeleted={forgetPropertyMemos}
-              memoActions={memoActions}
-            />
+            <DetailRoute onReserve={(id) => navigate(`/booking/${id}`)} />
           }
         />
       </Routes>
