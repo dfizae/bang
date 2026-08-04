@@ -37,6 +37,12 @@ export interface EndedSession {
   endedAt: string;
 }
 
+export interface LeavedSession {
+  sessionId: number;
+  status: SessionStatus;
+  leftAt: string;
+}
+
 export interface StoredSessionCapture {
   captureId: number;
   imageUrl: string;
@@ -57,6 +63,12 @@ export function joinSession(sessionId: number): Promise<JoinedSession> {
 
 export function endSession(sessionId: number): Promise<EndedSession> {
   return api.patch<EndedSession>({ path: `${SESSIONS_PATH}/${sessionId}/end` });
+}
+
+export function leaveSession(sessionId: number): Promise<LeavedSession> {
+  return api.post<LeavedSession>({
+    path: `${SESSIONS_PATH}/${sessionId}/leave`,
+  });
 }
 
 export function uploadUserCapture(

@@ -12,6 +12,7 @@ import {
   ChevronUp,
   ListChecks,
   Loader2,
+  LogOut,
   Mic,
   MicOff,
   PhoneOff,
@@ -42,6 +43,7 @@ import { useMeetingDetail } from "@/hooks/queries/meetingQueries";
 import { usePropertyDetail } from "@/hooks/queries/propertyQueries";
 import {
   useEndSession,
+  useLeaveSession,
   useLiveSession,
   useUploadSessionCapture,
 } from "@/hooks/queries/sessionQueries";
@@ -413,6 +415,8 @@ function ReservationLivePage() {
   const sessionEndedRef = useRef(false);
 
   const [status, setStatus] = useState<SessionStatus>("connecting");
+  // 나가기 다이얼로그 분기용 — 상대가 세션에 남아 있으면 퇴장만, 혼자면 종료까지 제안한다
+  const [peerPresent, setPeerPresent] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [mediaStatus, setMediaStatus] = useState<MediaStatus>("pending");
@@ -501,11 +505,39 @@ function ReservationLivePage() {
     useCreateReport();
   const { mutateAsync: endLiveSession, isPending: isEndingSession } =
     useEndSession(meetingId);
+  const { mutateAsync: leaveLiveSession, isPending: isLeavingSession } =
+    useLeaveSession(meetingId);
   const { mutateAsync: uploadCapture, isPending: isUploadingCapture } =
     useUploadSessionCapture();
   const [reportError, setReportError] = useState<string | null>(null);
 
-  const leaveSession = async () => {
+  // 진행 중에는 어느 버튼으로도 중복 요청이 나가지 않게 함께 잠근다
+  const isClosingSession =
+    isSavingReport || isEndingSession || isUploadingCapture;
+  const sessionActionPending = isClosingSession || isLeavingSession;
+
+  // RTC-03 세션 퇴장 — 세션은 살려 둔 채 나만 나간다 (재입장 가능)
+  const leaveMeeting = async () => {
+    if (!session) {
+      setReportError(
+        "세션 정보를 준비하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      );
+      return;
+    }
+
+    setReportError(null);
+    try {
+      await leaveLiveSession(session.sessionId);
+    } catch (error) {
+      setReportError(
+        `퇴장 요청 실패: ${isApiError(error) ? error.message : "잠시 후 다시 시도해 주세요."}`,
+      );
+      return;
+    }
+    navigate("/reservations");
+  };
+
+  const endMeeting = async () => {
     if (!session) {
       setReportError(
         "리포트 정보를 준비하지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -564,6 +596,7 @@ function ReservationLivePage() {
   // RTC-06 AI 하자 검수 — 원본 화질(송출 전) 스트림을 가진 중개사 쪽에서만 돌린다
   const { candidateCount } = useInspectionStream(
     localVideoRef,
+    session?.sessionId,
     isBroker && status === "connected",
   );
 
@@ -703,6 +736,7 @@ function ReservationLivePage() {
           case "JOINED":
             // peerId가 없으면 내가 첫 입장. 상대가 이미 있으면 그쪽이
             // PEER_JOINED를 받고 오퍼를 보내오므로 여기서는 기다린다
+            setPeerPresent(message.peerId != null);
             if (message.peerId == null) {
               setStatus("waiting");
             }
@@ -710,6 +744,7 @@ function ReservationLivePage() {
           case "PEER_JOINED": {
             // 첫 입장이든 나갔던 상대의 재입장이든, 협상 이력이 없는
             // 새 연결에서 오퍼를 만들어야 ICE가 처음부터 다시 뚫린다
+            setPeerPresent(true);
             setStatus("connecting");
             const fresh = resetPeerConnection();
             await fresh.setLocalDescription();
@@ -717,6 +752,7 @@ function ReservationLivePage() {
             break;
           }
           case "PEER_LEFT":
+            setPeerPresent(false);
             setStatus("peer-left");
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = null;
@@ -1025,21 +1061,27 @@ function ReservationLivePage() {
         </DialogContent>
       </Dialog>
 
+      {/* 상대가 남아 있으면 퇴장(leave)만 묻고, 혼자 남았으면 자리 비움(leave)과
+          미팅 종료(end) 중에서 고르게 한다 */}
       <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>점검을 끝낼까요?</DialogTitle>
+            <DialogTitle>
+              {peerPresent
+                ? "미팅에서 나가겠습니까?"
+                : "미팅을 종료하시겠습니까?"}
+            </DialogTitle>
             <DialogDescription>
-              나가면 통화가 끊기고 상대방은 혼자 남습니다.
+              {peerPresent
+                ? "나가면 통화가 끊기고 상대방은 세션에 남습니다. 세션이 끝나기 전에는 다시 입장할 수 있어요."
+                : "자리 비움을 누르면 세션을 유지한 채 나가서 다시 입장할 수 있고, 미팅 종료를 누르면 세션이 끝나고 캡처와 AI 리포트가 저장됩니다."}
               {showPanel && " 체크리스트는 그대로 저장돼 있어요."}
-              {captures.length > 0 &&
+              {peerPresent &&
+                captures.length > 0 &&
                 ` 이번 세션에서 남긴 캡처 ${captures.length}장은 사라집니다.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLeaveOpen(false)}>
-              계속 점검하기
-            </Button>
             {reportError && (
               <div className="flex flex-col items-start gap-2">
                 <p role="alert" className="text-sm text-destructive">
@@ -1054,20 +1096,50 @@ function ReservationLivePage() {
                 </Button>
               </div>
             )}
-            <Button
-              variant="destructive"
-              disabled={isSavingReport || isEndingSession || isUploadingCapture}
-              onClick={() => void leaveSession()}
-            >
-              {isSavingReport || isEndingSession || isUploadingCapture ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <PhoneOff />
-              )}
-              {isSavingReport || isEndingSession || isUploadingCapture
-                ? "종료 처리 중..."
-                : "종료하고 저장"}
+            <Button variant="outline" onClick={() => setLeaveOpen(false)}>
+              {peerPresent ? "아니요" : "취소"}
             </Button>
+            {peerPresent ? (
+              <Button
+                variant="destructive"
+                disabled={sessionActionPending}
+                onClick={() => void leaveMeeting()}
+              >
+                {isLeavingSession ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <PhoneOff />
+                )}
+                {isLeavingSession ? "나가는 중..." : "예"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  disabled={sessionActionPending}
+                  onClick={() => void leaveMeeting()}
+                >
+                  {isLeavingSession ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <LogOut />
+                  )}
+                  {isLeavingSession ? "나가는 중..." : "자리 비움"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={sessionActionPending}
+                  onClick={() => void endMeeting()}
+                >
+                  {isClosingSession ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <PhoneOff />
+                  )}
+                  {isClosingSession ? "종료 처리 중..." : "미팅 종료"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
