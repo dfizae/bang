@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type Ref } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -47,6 +55,8 @@ import {
   waitForContainerSize,
   type KakaoClusterStyle,
   type KakaoClusterer,
+  type KakaoCustomOverlay,
+  type KakaoLatLng,
   type KakaoMap,
   type KakaoMarker,
   type KakaoMarkerImage,
@@ -70,6 +80,15 @@ const MARKER_WIDTH_PX = 42;
 const MARKER_HEIGHT_PX = 48;
 // 하단 시트가 지도를 덮는 화면에서 고른 핀이 놓일 자리 — 지도 높이 기준 위에서부터의 비율
 const MARKER_FOCUS_TOP_RATIO = 0.32;
+// 클러스터러가 핀을 묶기 시작하는 지도 레벨 — 이 아래에서는 모든 핀이 개별로 그려진다
+const CLUSTER_MIN_LEVEL = 6;
+// 이 개수 미만이면 클러스터러가 원 대신 개별 핀을 그대로 그린다
+const MIN_CLUSTER_SIZE = 2;
+const MARKER_LABEL_Z_INDEX = 1;
+// 라벨보다 위에 뜬다 — 버튼이 다른 매물 라벨에 가리면 안 된다
+const DETAIL_OVERLAY_Z_INDEX = 10;
+// 목록에서 고른 매물로 좁혀 보여주는 지도 레벨 — 클러스터가 풀리는 수준(CLUSTER_MIN_LEVEL)보다 가깝다
+const LIST_FOCUS_MAP_LEVEL = 4;
 
 const DEAL_TYPE_MARKER = {
   전세: { slug: "jeonse", label: "전세", color: "var(--marker-jeonse)" },
@@ -110,6 +129,125 @@ function getPropertyMarkerImage(
   return markerImage;
 }
 
+const MARKER_LABEL_CLASS =
+  "block max-w-32 truncate rounded-full border bg-background/95 px-2 py-0.5 text-xs font-medium whitespace-nowrap shadow-sm backdrop-blur";
+
+// 라벨은 읽기 전용이다 — pointer-events를 끊어 클릭은 그대로 핀이 받는다
+function createMarkerLabel(title: string) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "pointer-events-none pt-1";
+
+  const pill = document.createElement("span");
+  pill.className = MARKER_LABEL_CLASS;
+  pill.textContent = title;
+  wrapper.append(pill);
+
+  return { wrapper, pill };
+}
+
+interface PlacedMarker {
+  marker: KakaoMarker;
+  property: PropertyCardItem;
+  position: KakaoLatLng;
+  labelPill: HTMLElement;
+  labelOverlay: KakaoCustomOverlay;
+}
+
+// 클러스터러는 마커만 관리하고 오버레이는 모른다 — 지금 개별로 그려지는 핀에만 이름을 남긴다.
+// 고른 매물의 라벨은 강조해 핀·라벨·목록이 같은 매물을 가리키는지 한눈에 보이게 한다
+function syncMarkerLabels(
+  map: KakaoMap,
+  placed: PlacedMarker[],
+  clusteredMarkers: Set<KakaoMarker>,
+  selectedPropertyId: number | null,
+) {
+  const isClustering = map.getLevel() >= CLUSTER_MIN_LEVEL;
+  for (const { marker, property, labelPill, labelOverlay } of placed) {
+    const isSelected = property.id === selectedPropertyId;
+    labelPill.classList.toggle("border-primary", isSelected);
+    labelPill.classList.toggle("text-primary", isSelected);
+
+    const isHidden = isClustering && clusteredMarkers.has(marker);
+    labelOverlay.setMap(isHidden ? null : map);
+  }
+}
+
+// 상세 보기 버튼은 고른 매물의 핀 위에만 뜬다 — 핀이 아직 배치되지 않았으면 지도에서 뗀다
+function syncDetailOverlay(
+  map: KakaoMap,
+  overlay: KakaoCustomOverlay | null,
+  placed: PlacedMarker[],
+  selectedPropertyId: number | null,
+) {
+  if (!overlay) {
+    return;
+  }
+
+  const target =
+    selectedPropertyId === null
+      ? undefined
+      : placed.find(({ property }) => property.id === selectedPropertyId);
+  if (!target) {
+    overlay.setMap(null);
+    return;
+  }
+
+  overlay.setPosition(target.position);
+  overlay.setMap(map);
+}
+
+// 하단 시트가 지도 아래를 덮는 화면에서는 고른 핀을 시트 위쪽으로 끌어올려 보여준다
+function focusOffsetPixel(
+  container: HTMLElement | null,
+  hasBottomSheet: boolean,
+) {
+  if (!hasBottomSheet || !container) {
+    return 0;
+  }
+  return container.clientHeight * (0.5 - MARKER_FOCUS_TOP_RATIO);
+}
+
+// setLevel은 즉시 반영하고 이동만 애니메이션한다 — 확대 도중 좌표 투영이 흔들리지 않게 한다
+function focusPlacedMarker(
+  maps: KakaoMapsSdk,
+  map: KakaoMap,
+  target: PlacedMarker,
+  container: HTMLElement | null,
+  hasBottomSheet: boolean,
+) {
+  map.setLevel(LIST_FOCUS_MAP_LEVEL);
+  panToAboveCenter(
+    maps,
+    map,
+    target.position,
+    focusOffsetPixel(container, hasBottomSheet),
+  );
+}
+
+// 포커스 요청은 "어떤 매물"을 위한 것인지 함께 들고 있어야 한다 — 그 사이 지도 핀 클릭 등으로
+// 다른 매물이 선택되면 낡은 요청을 조용히 버려야, 엉뚱한 매물의 버튼이 포커스를 가로채지 않는다.
+// 요청이 아직 유효해도 오버레이가 지도에 안 붙어 버튼이 문서 밖에 있으면 focus()가 조용히 실패하므로,
+// 이때는 요청을 소비하지 않고 남겨 오버레이가 붙는 시점(호출하는 쪽)에 재시도하게 한다
+function focusDetailButtonIfReady(
+  requestedPropertyIdRef: { current: number | null },
+  currentPropertyId: number | null,
+  buttonRef: { current: HTMLButtonElement | null },
+) {
+  const requestedPropertyId = requestedPropertyIdRef.current;
+  if (requestedPropertyId === null) {
+    return;
+  }
+  if (requestedPropertyId !== currentPropertyId) {
+    requestedPropertyIdRef.current = null;
+    return;
+  }
+  if (!buttonRef.current?.isConnected) {
+    return;
+  }
+  requestedPropertyIdRef.current = null;
+  buttonRef.current.focus();
+}
+
 const CLUSTER_STYLE: KakaoClusterStyle = {
   width: "48px",
   height: "48px",
@@ -137,17 +275,31 @@ interface SelectHandlers {
   onSelectCluster: (propertyIds: number[]) => void;
 }
 
+// 카메라 이동은 선택 상태에서 파생시키지 않는다 — 같은 매물을 다시 골라도 다시 그 핀으로 돌아와야 한다
+interface PropertyMapHandle {
+  focusProperty: (propertyId: number) => void;
+}
+
 interface PropertyMapProps extends SelectHandlers {
   properties: PropertyCardItem[];
   hasBottomSheet: boolean;
+  selectedPropertyId: number | null;
+  onOpenDetail: (propertyId: number) => void;
+  // 지오코딩이 끝났는데도 핀이 없는 매물 — 지도에서 열 방법이 없으니 상세로 바로 보낸다
+  onDetailUnavailable: (propertyId: number) => void;
+  ref: Ref<PropertyMapHandle>;
 }
 
 // 지도와 핀만 담당한다. 무엇이 선택됐는지는 페이지가 소유하고, 목록 패널이 같은 값을 함께 본다
 function PropertyMap({
   properties,
   hasBottomSheet,
+  selectedPropertyId,
   onSelectMarker,
   onSelectCluster,
+  onOpenDetail,
+  onDetailUnavailable,
+  ref,
 }: PropertyMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const clustererRef = useRef<KakaoClusterer | null>(null);
@@ -162,13 +314,33 @@ function PropertyMap({
   });
   // 시트 유무는 창 크기에 따라 바뀌지만 마커를 다시 그릴 이유는 아니다 — 최신 값만 참조한다
   const hasBottomSheetRef = useRef(hasBottomSheet);
+  // 마커 없는 매물을 상세로 보내는 콜백도 리스너·프로미스 콜백에서 최신 값을 읽어야 한다
+  const onDetailUnavailableRef = useRef(onDetailUnavailable);
   useEffect(() => {
     selectHandlersRef.current = { onSelectMarker, onSelectCluster };
     hasBottomSheetRef.current = hasBottomSheet;
+    selectedPropertyIdRef.current = selectedPropertyId;
+    onDetailUnavailableRef.current = onDetailUnavailable;
   });
 
   // clusterclick 리스너도 생성 시 한 번만 달리므로, 최신 마커 → 매물 매핑을 ref로 넘겨준다
   const propertyByMarkerRef = useRef(new Map<KakaoMarker, PropertyCardItem>());
+  // 라벨 표시 여부와 카메라 이동은 마커 배치 결과를 봐야 한다 — 리스너가 최신 값을 읽도록 ref로 둔다
+  const placedMarkersRef = useRef<PlacedMarker[]>([]);
+  const clusteredMarkersRef = useRef(new Set<KakaoMarker>());
+  const detailOverlayRef = useRef<KakaoCustomOverlay | null>(null);
+  // 오버레이 콘텐츠는 지도 생성 시 만든 DOM에 portal로 그린다 — shadcn Button을 그대로 쓰기 위해서다
+  const [detailOverlayElement, setDetailOverlayElement] =
+    useState<HTMLDivElement | null>(null);
+  const selectedPropertyIdRef = useRef(selectedPropertyId);
+  // "아직 지오코딩 중이라 마커가 없다"와 "끝났는데 마커가 없다"를 구분하는 데 쓴다
+  const placementSettledRef = useRef(false);
+  // 지오코딩이 끝나기 전에 고른 매물 — 핀이 놓이는 즉시 한 번 이동한다
+  const pendingFocusIdRef = useRef<number | null>(null);
+  // 목록에서 고른 매물의 상세 보기 버튼으로 포커스를 옮긴다 — 어떤 매물이 요청했는지 들고 있어야
+  // 그 사이 지도 핀 클릭 등으로 다른 매물이 선택되면 낡은 요청을 버릴 수 있다
+  const focusRequestedPropertyIdRef = useRef<number | null>(null);
+  const detailButtonRef = useRef<HTMLButtonElement>(null);
 
   // 지도 생성은 마운트에 1회 — SDK 로드 후 컨테이너 크기가 확정되면 만든다
   useEffect(() => {
@@ -202,7 +374,7 @@ function PropertyMap({
           map: createdMap,
           markers: [],
           averageCenter: true,
-          minLevel: 6,
+          minLevel: CLUSTER_MIN_LEVEL,
           disableClickZoom: true,
           clickable: true,
           calculator: [10, 30, 50],
@@ -210,9 +382,6 @@ function PropertyMap({
         });
 
         maps.event.addListener(clusterer, "clusterclick", (cluster) => {
-          if (!cluster) {
-            return;
-          }
           const propertyIds = cluster
             .getMarkers()
             .map((marker) => propertyByMarkerRef.current.get(marker)?.id)
@@ -221,12 +390,56 @@ function PropertyMap({
           selectHandlersRef.current.onSelectCluster(propertyIds);
         });
 
+        // 클러스터로 묶인 핀의 라벨은 원 위에 겹쳐 뜨므로 숨긴다
+        maps.event.addListener(clusterer, "clustered", (clusters) => {
+          const clusteredMarkers = new Set<KakaoMarker>();
+          for (const cluster of clusters) {
+            if (cluster.getSize() < MIN_CLUSTER_SIZE) {
+              continue;
+            }
+            for (const marker of cluster.getMarkers()) {
+              clusteredMarkers.add(marker);
+            }
+          }
+          clusteredMarkersRef.current = clusteredMarkers;
+          syncMarkerLabels(
+            createdMap,
+            placedMarkersRef.current,
+            clusteredMarkers,
+            selectedPropertyIdRef.current,
+          );
+        });
+
+        // clustered가 저레벨에서도 발화하는지에 의존하지 않는다 — 이동이 멎을 때마다 레벨로 다시 판정한다
+        maps.event.addListener(createdMap, "idle", () => {
+          syncMarkerLabels(
+            createdMap,
+            placedMarkersRef.current,
+            clusteredMarkersRef.current,
+            selectedPropertyIdRef.current,
+          );
+        });
+
         // 사이드바를 여닫거나 창 크기가 바뀌면 지도만 다시 재도록 한다
         resizeObserver = new ResizeObserver(() => {
           cancelAnimationFrame(relayoutFrame);
           relayoutFrame = requestAnimationFrame(() => createdMap.relayout());
         });
         resizeObserver.observe(container);
+
+        const detailOverlayContent = document.createElement("div");
+        const detailOverlay = new maps.CustomOverlay({
+          position: new maps.LatLng(
+            SEOUL_CITY_HALL.latitude,
+            SEOUL_CITY_HALL.longitude,
+          ),
+          content: detailOverlayContent,
+          yAnchor: 1,
+          zIndex: DETAIL_OVERLAY_Z_INDEX,
+          clickable: true,
+        });
+        detailOverlayRef.current = detailOverlay;
+        setDetailOverlayElement(detailOverlayContent);
 
         clustererRef.current = clusterer;
         setMap(createdMap);
@@ -246,6 +459,8 @@ function PropertyMap({
       cancelAnimationFrame(relayoutFrame);
       resizeObserver?.disconnect();
       clustererRef.current = null;
+      detailOverlayRef.current = null;
+      setDetailOverlayElement(null);
       setMap(null);
       container.replaceChildren();
     };
@@ -259,17 +474,9 @@ function PropertyMap({
       return;
     }
 
+    placementSettledRef.current = false;
     let cancelled = false;
     const addressOccurrences = new Map<string, number>();
-
-    // 하단 시트가 지도 아래를 덮는 화면에서는 고른 핀을 시트 위쪽으로 끌어올려 보여준다
-    const focusOffsetPixel = () => {
-      const container = mapContainerRef.current;
-      if (!hasBottomSheetRef.current || !container) {
-        return 0;
-      }
-      return container.clientHeight * (0.5 - MARKER_FOCUS_TOP_RATIO);
-    };
 
     const markerPromises = properties.map(async (property) => {
       const address = `${property.region} ${property.dong}`;
@@ -297,11 +504,31 @@ function PropertyMap({
         ),
       });
 
+      const label = createMarkerLabel(property.title);
+      // map을 넘기지 않는다 — 표시 여부는 syncMarkerLabels가 결정한다
+      const labelOverlay = new maps.CustomOverlay({
+        position,
+        content: label.wrapper,
+        yAnchor: 0,
+        zIndex: MARKER_LABEL_Z_INDEX,
+      });
+
       maps.event.addListener(marker, "click", () => {
         selectHandlersRef.current.onSelectMarker(property.id);
-        panToAboveCenter(maps, map, position, focusOffsetPixel());
+        panToAboveCenter(
+          maps,
+          map,
+          position,
+          focusOffsetPixel(mapContainerRef.current, hasBottomSheetRef.current),
+        );
       });
-      return { marker, property, position };
+      return {
+        marker,
+        property,
+        position,
+        labelPill: label.pill,
+        labelOverlay,
+      };
     });
 
     void Promise.all(markerPromises).then((results) => {
@@ -310,7 +537,7 @@ function PropertyMap({
       }
 
       const placed = results.filter(
-        (result): result is NonNullable<typeof result> => result !== null,
+        (result): result is PlacedMarker => result !== null,
       );
       const propertyByMarker = new Map<KakaoMarker, PropertyCardItem>();
       const bounds = new maps.LatLngBounds();
@@ -319,24 +546,185 @@ function PropertyMap({
         bounds.extend(position);
       }
       propertyByMarkerRef.current = propertyByMarker;
+      placedMarkersRef.current = placed;
+      placementSettledRef.current = true;
 
+      // 이전 마커 참조는 새 목록에서 의미가 없다 — clustered가 다시 채운다
+      clusteredMarkersRef.current = new Set();
       clusterer.clear();
-      if (placed.length === 0) {
+      // 핀이 하나도 없어도 아래 오버레이 정리와 보류 포커스 처리는 그대로 거쳐야 한다
+      if (placed.length > 0) {
+        clusterer.addMarkers(placed.map(({ marker }) => marker));
+        // 고른 매물이 있으면 사용자가 직접 맞춘 화면이다 — 저장 토글 같은 배경 갱신으로 이 이펙트가
+        // 다시 돌 때 전체 범위로 카메라를 되돌리지 않는다. 필터 변경은 선택을 지우므로 다시 맞춘다
+        if (selectedPropertyIdRef.current === null) {
+          map.setBounds(bounds);
+        }
+      }
+      syncMarkerLabels(
+        map,
+        placed,
+        clusteredMarkersRef.current,
+        selectedPropertyIdRef.current,
+      );
+      syncDetailOverlay(
+        map,
+        detailOverlayRef.current,
+        placed,
+        selectedPropertyIdRef.current,
+      );
+
+      const pendingFocusId = pendingFocusIdRef.current;
+      if (pendingFocusId === null) {
         return;
       }
-      clusterer.addMarkers(placed.map(({ marker }) => marker));
-      map.setBounds(bounds);
+      pendingFocusIdRef.current = null;
+      // 지오코딩이 끝나기 전에 선택이 풀렸다면(Esc 등) 지금 와서 카메라를 튀길 이유가 없다
+      if (selectedPropertyIdRef.current !== pendingFocusId) {
+        return;
+      }
+
+      const pendingTarget = placed.find(
+        ({ property }) => property.id === pendingFocusId,
+      );
+      if (!pendingTarget) {
+        // 지오코딩이 끝났는데도 핀이 없다 — 지도로는 영영 열 수 없으니 상세로 바로 보낸다
+        focusRequestedPropertyIdRef.current = null;
+        onDetailUnavailableRef.current(pendingFocusId);
+        return;
+      }
+
+      focusPlacedMarker(
+        maps,
+        map,
+        pendingTarget,
+        mapContainerRef.current,
+        hasBottomSheetRef.current,
+      );
+      // 방금 syncDetailOverlay가 오버레이를 다시 붙였을 수 있다 — 그때만 버튼이 문서에 존재한다
+      focusDetailButtonIfReady(
+        focusRequestedPropertyIdRef,
+        selectedPropertyIdRef.current,
+        detailButtonRef,
+      );
     });
 
     return () => {
       cancelled = true;
+      for (const { labelOverlay } of placedMarkersRef.current) {
+        labelOverlay.setMap(null);
+      }
+      placedMarkersRef.current = [];
+      // 지난 배치의 마커는 새 목록에서 의미가 없다 — 남겨두면 그 핀 클릭이 낡은 매물을 고른다
+      propertyByMarkerRef.current = new Map();
     };
   }, [map, properties]);
+
+  // 선택이 바뀌면 핀을 다시 그리지 않고 오버레이 위치와 라벨 강조만 갱신한다
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+    syncDetailOverlay(
+      map,
+      detailOverlayRef.current,
+      placedMarkersRef.current,
+      selectedPropertyId,
+    );
+    syncMarkerLabels(
+      map,
+      placedMarkersRef.current,
+      clusteredMarkersRef.current,
+      selectedPropertyId,
+    );
+  }, [map, selectedPropertyId]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusProperty: (propertyId: number) => {
+        // 키가 없거나 SDK 로드가 실패했으면 지도는 영영 만들어지지 않는다 — 기다려도 배치 이펙트가
+        // 돌지 않으므로 보류하지 않고, 지도로 열 수 없는 매물과 같은 길(상세 이동)로 보낸다
+        if (!appKey || mapError) {
+          pendingFocusIdRef.current = null;
+          focusRequestedPropertyIdRef.current = null;
+          onDetailUnavailableRef.current(propertyId);
+          return;
+        }
+
+        // 지도가 아직 없어도(SDK 로딩 중) 클릭을 흘리지 않는다 — 지도가 뜨면 배치 이펙트가 이 값을 집어간다
+        pendingFocusIdRef.current = propertyId;
+        focusRequestedPropertyIdRef.current = propertyId;
+
+        const maps = getKakaoMaps();
+        if (!map || !maps) {
+          return;
+        }
+
+        const target = placedMarkersRef.current.find(
+          ({ property }) => property.id === propertyId,
+        );
+        if (!target) {
+          // placementSettledRef가 true면 지오코딩이 이미 끝난 뒤라는 뜻 — 이 매물은 핀이 영영 없다
+          if (placementSettledRef.current) {
+            pendingFocusIdRef.current = null;
+            focusRequestedPropertyIdRef.current = null;
+            onDetailUnavailableRef.current(propertyId);
+          }
+          return;
+        }
+
+        pendingFocusIdRef.current = null;
+        focusPlacedMarker(
+          maps,
+          map,
+          target,
+          mapContainerRef.current,
+          hasBottomSheetRef.current,
+        );
+      },
+    }),
+    [map, appKey, mapError],
+  );
+
+  // 목록 클릭이 더 이상 상세로 가지 않으므로, 키보드 사용자가 지도까지 Tab으로 넘어가지 않게 한다.
+  // 요청한 매물이 여전히 선택돼 있고, 오버레이가 지도에 붙어 버튼이 문서에 있을 때만 포커스를 옮긴다.
+  // 둘 중 하나라도 아니면(다른 매물이 선택됐거나 아직 배치 전이면) 여기서는 넘기고, 배치가 끝나
+  // 오버레이가 붙는 시점(마커 배치 이펙트)에 다시 시도한다
+  useEffect(() => {
+    focusDetailButtonIfReady(
+      focusRequestedPropertyIdRef,
+      selectedPropertyId,
+      detailButtonRef,
+    );
+  }, [selectedPropertyId]);
+
+  const selectedProperty = properties.find(
+    ({ id }) => id === selectedPropertyId,
+  );
 
   return (
     <>
       {/* touch-none — 지도 제스처를 페이지 스크롤에 뺏기지 않는다 */}
       <div ref={mapContainerRef} className="absolute inset-0 touch-none" />
+
+      {detailOverlayElement &&
+        selectedProperty &&
+        createPortal(
+          // pb-13(52px) — 48px 핀 위로 버튼을 올린다. yAnchor 1이라 콘텐츠 아래쪽이 핀 끝에 붙는다
+          <div className="pb-13">
+            <Button
+              ref={detailButtonRef}
+              size="sm"
+              className="cursor-pointer rounded-full shadow-md"
+              aria-label={`${selectedProperty.title} 상세 보기`}
+              onClick={() => onOpenDetail(selectedProperty.id)}
+            >
+              상세 보기
+            </Button>
+          </div>,
+          detailOverlayElement,
+        )}
 
       {(!appKey || mapError) && (
         <div className="absolute inset-0 grid place-items-center bg-muted p-6 text-center">
@@ -359,30 +747,32 @@ function PropertyMap({
 interface PropertyResultItemProps {
   property: PropertyCardItem;
   isSelected: boolean;
-  onOpen: (id: number) => void;
+  onSelect: (id: number) => void;
   onToggleSave: (id: number, saved: boolean) => void;
-  ref: Ref<HTMLDivElement>;
+  ref: Ref<HTMLButtonElement>;
 }
 
 function PropertyResultItem({
   property,
   isSelected,
-  onOpen,
+  onSelect,
   onToggleSave,
   ref,
 }: PropertyResultItemProps) {
   return (
     <div
-      ref={ref}
       className={cn(
         "flex items-center gap-3 rounded-xl p-2 transition-colors",
         isSelected ? "bg-accent ring-1 ring-primary/30" : "hover:bg-muted",
       )}
     >
       <button
+        ref={ref}
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        onClick={() => onOpen(property.id)}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+        // 지금 지도가 가리키는 항목이라는 사실을 배경색 말고도 보조 기술에 전한다
+        aria-current={isSelected ? "true" : undefined}
+        onClick={() => onSelect(property.id)}
       >
         {property.imageUrl ? (
           <img
@@ -445,7 +835,7 @@ interface PropertyResultListProps {
   selectedId: number | null;
   onRetry: () => void;
   onResetFilters: () => void;
-  onOpen: (id: number) => void;
+  onSelect: (id: number) => void;
   onToggleSave: (id: number, saved: boolean) => void;
 }
 
@@ -457,10 +847,12 @@ function PropertyResultList({
   selectedId,
   onRetry,
   onResetFilters,
-  onOpen,
+  onSelect,
   onToggleSave,
 }: PropertyResultListProps) {
-  const itemRefs = useRef(new Map<number, HTMLDivElement>());
+  const itemRefs = useRef(new Map<number, HTMLButtonElement>());
+  // 목록에서 고른 매물 — 선택이 풀리면 포커스를 돌려줄 자리를 알아야 한다
+  const listInvokedIdRef = useRef<number | null>(null);
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
 
   // 지도에서 핀을 고르면 목록도 그 매물로 따라 움직인다
@@ -473,6 +865,31 @@ function PropertyResultList({
       behavior: prefersReducedMotion ? "auto" : "smooth",
     });
   }, [selectedId, prefersReducedMotion]);
+
+  // 목록 클릭으로 옮겨간 포커스는 지도 위 상세 보기 버튼에 있다 — 선택이 풀려 그 버튼이 사라지면
+  // 포커스가 body로 떨어져 Tab이 문서 처음부터 다시 시작한다. 눌렀던 항목으로 되돌려준다
+  useEffect(() => {
+    const invokedId = listInvokedIdRef.current;
+    if (invokedId === null || invokedId === selectedId) {
+      return;
+    }
+    listInvokedIdRef.current = null;
+
+    const activeElement = document.activeElement;
+    // 지도 핀으로 다른 매물이 선택됐거나 사용자가 포커스를 이미 옮겼다면 빼앗지 않는다
+    if (
+      selectedId !== null ||
+      (activeElement !== null && activeElement !== document.body)
+    ) {
+      return;
+    }
+    itemRefs.current.get(invokedId)?.focus();
+  }, [selectedId]);
+
+  const selectFromItem = (id: number) => {
+    listInvokedIdRef.current = id;
+    onSelect(id);
+  };
 
   if (isPending) {
     return (
@@ -529,7 +946,7 @@ function PropertyResultList({
           }}
           property={property}
           isSelected={property.id === selectedId}
-          onOpen={onOpen}
+          onSelect={selectFromItem}
           onToggleSave={onToggleSave}
         />
       ))}
@@ -645,6 +1062,7 @@ function PropertyListPage({
   const [saveError, setSaveError] = useState<string | null>(null);
   const sheetDragStartYRef = useRef<number | null>(null);
   const didDragSheetRef = useRef(false);
+  const propertyMapRef = useRef<PropertyMapHandle>(null);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
@@ -697,6 +1115,12 @@ function PropertyListPage({
     showResults();
   };
 
+  // 목록에서 고르면 상세로 튀지 않고 지도를 그 매물로 좁힌다 — 탐색 맥락을 잃지 않는다
+  const selectFromList = (propertyId: number) => {
+    setSelection({ kind: "marker", propertyId });
+    propertyMapRef.current?.focusProperty(propertyId);
+  };
+
   // 저장은 로그인 사용자만 가능 — 비로그인 상태에서는 401 대신 로그인 화면으로 보낸다
   const handleToggleSave = (propertyId: number, saved: boolean) => {
     if (!user) {
@@ -717,19 +1141,24 @@ function PropertyListPage({
     );
   };
 
-  // 지도를 가린 패널은 Esc로 즉시 걷어낼 수 있어야 한다
+  // 지도를 가린 패널과 지도 위 선택은 Esc로 즉시 걷어낼 수 있어야 한다
   useEffect(() => {
-    if (!isFilterOpen) {
+    if (!isFilterOpen && selection === null) {
       return;
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsFilterOpen(false);
+      if (event.key !== "Escape") {
+        return;
       }
+      if (isFilterOpen) {
+        setIsFilterOpen(false);
+        return;
+      }
+      setSelection(null);
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isFilterOpen]);
+  }, [isFilterOpen, selection]);
 
   const resultList = (
     <PropertyResultList
@@ -739,7 +1168,7 @@ function PropertyListPage({
       selectedId={selectedId}
       onRetry={() => refetch()}
       onResetFilters={resetFilters}
-      onOpen={onOpen}
+      onSelect={selectFromList}
       onToggleSave={handleToggleSave}
     />
   );
@@ -775,10 +1204,14 @@ function PropertyListPage({
 
       <main className="relative min-w-0 flex-1">
         <PropertyMap
+          ref={propertyMapRef}
           properties={items}
           hasBottomSheet={!isDesktop}
+          selectedPropertyId={selectedId}
           onSelectMarker={selectMarker}
           onSelectCluster={selectCluster}
+          onOpenDetail={onOpen}
+          onDetailUnavailable={onOpen}
         />
 
         {/* 목록 손잡이도 검색·필터·범례와 같은 왼쪽 여백(left-3)에 같은 재질로 세운다 */}

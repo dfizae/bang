@@ -49,13 +49,21 @@ export interface KakaoMap {
   relayout: () => void;
   setBounds: (bounds: KakaoLatLngBounds) => void;
   getProjection: () => KakaoMapProjection;
+  getLevel: () => number;
+  setLevel: (level: number) => void;
 }
 
 export type KakaoMarker = object;
 export type KakaoMarkerImage = object;
 
+export interface KakaoCustomOverlay {
+  setMap: (map: KakaoMap | null) => void;
+  setPosition: (position: KakaoLatLng) => void;
+}
+
 export interface KakaoCluster {
   getMarkers: () => KakaoMarker[];
+  getSize: () => number;
 }
 
 export interface KakaoClusterer {
@@ -115,6 +123,21 @@ interface KakaoPlaces {
   ) => void;
 }
 
+// 카카오 이벤트는 이름마다 핸들러 인자가 다르다 — 호출부에서 단언 없이 좁혀지도록 오버로드로 적는다
+export interface KakaoEventAddListener {
+  (target: object, type: "click" | "idle", handler: () => void): void;
+  (
+    target: object,
+    type: "clusterclick",
+    handler: (cluster: KakaoCluster) => void,
+  ): void;
+  (
+    target: object,
+    type: "clustered",
+    handler: (clusters: KakaoCluster[]) => void,
+  ): void;
+}
+
 export type KakaoMapsSdk = {
   load: (callback: () => void) => void;
   LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
@@ -145,12 +168,17 @@ export type KakaoMapsSdk = {
     calculator: number[];
     styles: KakaoClusterStyle[];
   }) => KakaoClusterer;
+  CustomOverlay: new (options: {
+    position: KakaoLatLng;
+    content: HTMLElement;
+    xAnchor?: number;
+    yAnchor?: number;
+    zIndex?: number;
+    clickable?: boolean;
+    map?: KakaoMap;
+  }) => KakaoCustomOverlay;
   event: {
-    addListener: (
-      target: object,
-      type: "click" | "clusterclick",
-      handler: (cluster?: KakaoCluster) => void,
-    ) => void;
+    addListener: KakaoEventAddListener;
   };
   services: {
     Status: { OK: string; ZERO_RESULT: string };
