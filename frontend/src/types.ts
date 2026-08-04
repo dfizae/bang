@@ -82,6 +82,13 @@ export interface PropertySummary {
   imageUrl?: string;
 }
 
+// 매물을 등록한 중개사 (상세 응답 agent)
+export interface PropertyAgent {
+  agentId: number;
+  name: string;
+  phone?: string;
+}
+
 export interface PropertyDetail extends PropertySummary {
   maintenanceFee?: number;
   lotNumber?: string;
@@ -93,6 +100,8 @@ export interface PropertyDetail extends PropertySummary {
   createdAt: string;
   // 백엔드 상세 응답의 images(imageId·sequence 포함)를 순서대로 편 URL 목록
   imageUrls?: string[];
+  // 등록한 중개사 — 백엔드 배포 전 응답에는 없을 수 있어 선택 필드로 둔다
+  agent?: PropertyAgent;
   // TBD: 상세 응답의 environment는 시설 개수 집계라 목록 형태(주변 편의시설)로는 아직 못 채운다
   nearbyFacilities?: NearbyFacility[];
 }

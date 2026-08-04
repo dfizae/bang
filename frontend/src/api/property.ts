@@ -35,15 +35,22 @@ interface PropertyImageResponse {
   sequence: number;
 }
 
+interface PropertyAgentResponse {
+  agentId: number;
+  name: string;
+  phone?: string | null;
+}
+
 // 백엔드 원본 응답 — 도메인 타입과 다른 부분(금액 단위·사진 형태)만 따로 표기한다
 export type PropertySummaryResponse = Omit<PropertySummary, "imageUrl">;
 
 type PropertyDetailResponse = Omit<
   PropertyDetail,
-  "imageUrl" | "imageUrls" | "nearbyFacilities" | "maintenanceFee"
+  "imageUrl" | "imageUrls" | "nearbyFacilities" | "maintenanceFee" | "agent"
 > & {
   maintenanceFee?: number | null;
   images?: PropertyImageResponse[] | null;
+  agent?: PropertyAgentResponse | null;
 };
 
 function toImageUrls(images: PropertyImageResponse[] | null | undefined) {
@@ -71,7 +78,7 @@ export function toPropertySummaryPage(
 }
 
 function toPropertyDetail(response: PropertyDetailResponse): PropertyDetail {
-  const { images, ...rest } = response;
+  const { images, agent, ...rest } = response;
 
   return {
     ...rest,
@@ -79,6 +86,7 @@ function toPropertyDetail(response: PropertyDetailResponse): PropertyDetail {
     monthlyRent: toManwon(response.monthlyRent),
     maintenanceFee: toManwonOptional(response.maintenanceFee),
     imageUrls: toImageUrls(images),
+    agent: agent ? { ...agent, phone: agent.phone ?? undefined } : undefined,
   };
 }
 
