@@ -564,6 +564,7 @@ function ReservationLivePage() {
   // RTC-06 AI 하자 검수 — 원본 화질(송출 전) 스트림을 가진 중개사 쪽에서만 돌린다
   const { candidateCount } = useInspectionStream(
     localVideoRef,
+    session?.sessionId,
     isBroker && status === "connected",
   );
 
