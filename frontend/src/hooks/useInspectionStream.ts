@@ -14,16 +14,19 @@ const JPEG_QUALITY = 0.85;
 // RTC-06 AI 하자 검수 — 영상 프레임을 1초 간격으로 AI 탐지 서버에 흘려보낸다.
 // 서버가 후보로 채택(saved)한 프레임의 원본 blob을 candidate_id로 보관해 두어,
 // 추후 백엔드 세션 캡처 저장(POST /api/sessions/{id}/captures)에 그대로 쓸 수 있다.
-// 이전 요청이 끝나기 전에는 다음 프레임을 건너뛰어 전송이 밀리지 않게 한다
+// 이전 요청이 끝나기 전에는 다음 프레임을 건너뛰어 전송이 밀리지 않게 한다.
+// 프레임·완료 요청은 AI 세션 생성이 끝난 뒤에만 나가므로, 백엔드 세션 id가
+// 정해지기 전에는 스트림을 시작하지 않는다
 export function useInspectionStream(
   videoRef: RefObject<HTMLVideoElement | null>,
+  backendSessionId: number | undefined,
   enabled: boolean,
 ) {
   const [candidateCount, setCandidateCount] = useState(0);
   const candidateBlobsRef = useRef(new Map<string, Blob>());
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || backendSessionId === undefined) {
       return;
     }
 
@@ -88,9 +91,11 @@ export function useInspectionStream(
       }
     };
 
-    void createInspectionSession()
+    void createInspectionSession(backendSessionId)
       .then((session) => {
+        // 생성 응답이 정리 이후에 도착하면 프레임을 보내지 않고 세션만 닫는다
         if (disposed) {
+          void completeInspection(session.session_id).catch(() => undefined);
           return;
         }
         sessionId = session.session_id;
@@ -114,7 +119,7 @@ export function useInspectionStream(
       candidateBlobs.clear();
       setCandidateCount(0);
     };
-  }, [enabled, videoRef]);
+  }, [backendSessionId, enabled, videoRef]);
 
   return { candidateCount, candidateBlobsRef };
 }
