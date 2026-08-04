@@ -29,6 +29,20 @@ export interface JoinedSession {
   expiresAt: string;
 }
 
+export interface EndedSession {
+  sessionId: number;
+  meetingId: number;
+  status: SessionStatus;
+  startedAt: string;
+  endedAt: string;
+}
+
+export interface StoredSessionCapture {
+  captureId: number;
+  imageUrl: string;
+  capturedAt: string;
+}
+
 export function createSession(meetingId: number): Promise<CreatedSession> {
   return api.post<CreatedSession>({
     path: `${MEETINGS_PATH}/${meetingId}/session`,
@@ -38,5 +52,21 @@ export function createSession(meetingId: number): Promise<CreatedSession> {
 export function joinSession(sessionId: number): Promise<JoinedSession> {
   return api.post<JoinedSession>({
     path: `${SESSIONS_PATH}/${sessionId}/join`,
+  });
+}
+
+export function endSession(sessionId: number): Promise<EndedSession> {
+  return api.patch<EndedSession>({ path: `${SESSIONS_PATH}/${sessionId}/end` });
+}
+
+export function uploadUserCapture(
+  sessionId: number,
+  image: Blob,
+): Promise<StoredSessionCapture> {
+  const form = new FormData();
+  form.append("image", image, `capture-${Date.now()}.png`);
+  return api.post<StoredSessionCapture>({
+    path: `${SESSIONS_PATH}/${sessionId}/captures/user`,
+    body: form,
   });
 }

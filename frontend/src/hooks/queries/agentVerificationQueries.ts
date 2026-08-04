@@ -58,8 +58,11 @@ export const adminAgentVerificationDetailOptions = (verificationId: number) =>
   });
 
 // 신청 이력이 없으면 null — 화면은 null(미신청)과 isError(조회 실패)를 구분해 처리한다
-export function useMyAgentVerification() {
-  return useQuery(myAgentVerificationOptions());
+export function useMyAgentVerification(enabled = true) {
+  return useQuery({
+    ...myAgentVerificationOptions(),
+    enabled,
+  });
 }
 
 // 사용자가 [조회]를 눌렀을 때만 실행되는 온디맨드 검증이라 쿼리가 아닌 뮤테이션으로 다룬다

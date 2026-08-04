@@ -25,10 +25,15 @@ import {
   useUpdateChecklistItemStatus,
 } from "@/hooks/queries/checklistQueries";
 import { cn } from "@/lib/utils";
-import type { ChecklistItem, ChecklistItemStatus } from "@/types";
+import type {
+  ChecklistItem,
+  ChecklistItemStatus,
+  MeetingStatus,
+} from "@/types";
 
 interface ReservationChecklistProps {
   meetingId: number | undefined;
+  meetingStatus?: MeetingStatus;
   // bare — 이미 제목이 있는 탭·패널 안에 들어갈 때 카드 껍데기와 제목을 뺀다
   variant?: "card" | "bare";
 }
@@ -48,6 +53,7 @@ const STATUS_LABEL: Record<ChecklistItemStatus, string> = {
 
 function ReservationChecklist({
   meetingId,
+  meetingStatus,
   variant = "card",
 }: ReservationChecklistProps) {
   const isBare = variant === "bare";
@@ -57,6 +63,22 @@ function ReservationChecklist({
       <ChecklistFrame isBare={isBare}>
         <ChecklistNotice isBare={isBare}>
           예약을 선택하면 체크리스트가 표시됩니다.
+        </ChecklistNotice>
+      </ChecklistFrame>
+    );
+  }
+
+  if (
+    meetingStatus !== undefined &&
+    meetingStatus !== "CONFIRMED" &&
+    meetingStatus !== "COMPLETED"
+  ) {
+    return (
+      <ChecklistFrame isBare={isBare}>
+        <ChecklistNotice isBare={isBare}>
+          {meetingStatus === "OPEN" || meetingStatus === "REQUESTED"
+            ? "예약이 확정되면 체크리스트가 자동으로 생성됩니다."
+            : "취소되거나 거절된 미팅에는 체크리스트가 생성되지 않습니다."}
         </ChecklistNotice>
       </ChecklistFrame>
     );
@@ -75,6 +97,7 @@ function ChecklistContent({
     data: checklist,
     isPending,
     isError,
+    error,
     refetch,
   } = useChecklist(meetingId);
   const createItem = useCreateChecklistItem(meetingId);
@@ -123,6 +146,11 @@ function ChecklistContent({
       <ChecklistFrame isBare={isBare}>
         <ChecklistNotice isBare={isBare}>
           체크리스트를 불러오지 못했습니다.
+          {isApiError(error) && (
+            <span className="text-xs text-muted-foreground">
+              {error.message}
+            </span>
+          )}
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw /> 다시 시도
           </Button>

@@ -5,8 +5,15 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
-import { CheckCircle2, ImageIcon, LogOut, Search } from "lucide-react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  CheckCircle2,
+  FileText,
+  ImageIcon,
+  LogOut,
+  Search,
+  UserRound,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +37,7 @@ import {
 } from "@/hooks/queries/agentVerificationQueries";
 import { useMyPropertyList } from "@/hooks/queries/propertyQueries";
 import { useUpdateProfile } from "@/hooks/queries/userQueries";
+import { usePropertyReports } from "@/hooks/queries/reportQueries";
 import { useAuthStore } from "@/stores/authStore";
 import { isApprovedBroker } from "@/lib/auth";
 import { formatDateTime, formatPrice } from "@/lib/format";
@@ -44,8 +52,17 @@ const PROVIDER_LABEL: Record<AuthProvider, string> = {
 // 백엔드 UserUpdateRequest가 요구하는 형식 — 400을 받기 전에 폼에서 먼저 걸러낸다
 const PHONE_PATTERN = /^010-\d{4}-\d{4}$/;
 
-// 신원 레일 — 프로필·역할·로그인 계정·중개사 인증까지 "나"에 대한 정보를 한 곳에 (USER-01)
-function IdentityRail({ user }: { user: User }) {
+type MyPageSection = "account" | "reports";
+
+function IdentityRail({
+  user,
+  section,
+  onSectionChange,
+}: {
+  user: User;
+  section: MyPageSection;
+  onSectionChange: (section: MyPageSection) => void;
+}) {
   return (
     <aside className="flex flex-col gap-6 self-start md:sticky md:top-24">
       <div className="flex items-center gap-4 md:flex-col md:items-start">
@@ -63,7 +80,36 @@ function IdentityRail({ user }: { user: User }) {
           </p>
         </div>
       </div>
-      <AgentVerificationPanel user={user} />
+      <nav aria-label="마이페이지 메뉴" className="border-t pt-4">
+        <ul className="flex gap-2 md:flex-col">
+          <li className="flex-1">
+            <button
+              type="button"
+              aria-current={section === "account" ? "page" : undefined}
+              onClick={() => onSectionChange("account")}
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-muted",
+                section === "account" && "bg-primary/10 text-primary",
+              )}
+            >
+              <UserRound className="size-4" /> 계정
+            </button>
+          </li>
+          <li className="flex-1">
+            <button
+              type="button"
+              aria-current={section === "reports" ? "page" : undefined}
+              onClick={() => onSectionChange("reports")}
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-muted",
+                section === "reports" && "bg-primary/10 text-primary",
+              )}
+            >
+              <FileText className="size-4" /> 매물 리포트
+            </button>
+          </li>
+        </ul>
+      </nav>
     </aside>
   );
 }
@@ -308,18 +354,46 @@ function OfficeInfoRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
-// 중개사 인증 — 등록번호·서류 제출 후 관리자 수동 승인, 신원 레일에 배치
+// 중개사 인증 — 등록번호·서류 제출 후 관리자 수동 승인
 function AgentVerificationPanel({ user }: { user: User }) {
   const [applyOpen, setApplyOpen] = useState(false);
+  const approvedBroker = isApprovedBroker(user);
   const {
     data: verification,
     isPending,
     isError,
     refetch,
-  } = useMyAgentVerification();
+  } = useMyAgentVerification(!approvedBroker);
+
+  if (approvedBroker) {
+    return (
+      <section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">중개사 인증</h2>
+          <Badge
+            variant="outline"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700"
+          >
+            <CheckCircle2 className="size-3.5" /> 인증 완료
+          </Badge>
+        </div>
+        <div className="mt-3 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">
+              중개사 인증이 완료되었습니다.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-emerald-700">
+              매물 등록과 중개사 전용 기능을 이용할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <div className="border-t pt-5">
+    <section>
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">중개사 인증</h2>
         {verification && (
@@ -363,7 +437,7 @@ function AgentVerificationPanel({ user }: { user: User }) {
         />
       )}
       <AgentVerificationDialog open={applyOpen} onOpenChange={setApplyOpen} />
-    </div>
+    </section>
   );
 }
 
@@ -639,7 +713,7 @@ function AgentVerificationDialog({
 }
 
 // PROP-10 내가 올린 매물 — 중개사 본인이 등록한 매물만 모아 보여준다 (GET /api/properties/me)
-function MyListingsSection() {
+export function MyListingsSection() {
   const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useMyPropertyList();
   const properties = data?.content ?? [];
@@ -719,6 +793,76 @@ function MyListingsSection() {
               >
                 수정
               </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ReportsSection({ reportSaved }: { reportSaved: boolean }) {
+  const navigate = useNavigate();
+  const { data, isPending, isError, refetch } = usePropertyReports();
+  const reports = data?.content ?? [];
+
+  return (
+    <section>
+      <SectionHeader title={`매물 리포트 (${reports.length})`} />
+      {reportSaved && (
+        <p
+          role="status"
+          className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700"
+        >
+          <CheckCircle2 className="size-4 shrink-0" />
+          미팅 점검 기록이 저장되었습니다.
+        </p>
+      )}
+      {isPending ? (
+        <div className="flex flex-col gap-3 py-4">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : isError ? (
+        <div className="flex items-center justify-between py-6">
+          <p className="text-sm text-muted-foreground">
+            리포트를 불러오지 못했어요.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            다시 시도
+          </Button>
+        </div>
+      ) : reports.length === 0 ? (
+        <p className="py-6 text-sm text-muted-foreground">
+          영상통화를 마치면 해당 매물의 점검 기록이 여기에 저장됩니다.
+        </p>
+      ) : (
+        <ul>
+          {reports.map((report) => (
+            <li key={report.reportId} className="border-b py-3 last:border-b-0">
+              <button
+                type="button"
+                onClick={() => navigate(`/reports/${report.reportId}`)}
+                className="flex w-full cursor-pointer items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span
+                  aria-hidden
+                  className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"
+                >
+                  <FileText className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {report.propertyTitle}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    미팅 {formatDateTime(report.meetingDate)}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {formatDateTime(report.createdAt)}
+                  </span>
+                </span>
+              </button>
             </li>
           ))}
         </ul>
@@ -825,15 +969,36 @@ function AccountSection() {
 // PAGE-02 마이페이지 — 내 정보 조회·수정·중개사 인증·내가 올린 매물(중개사)·탈퇴·로그아웃
 // 로그인 여부는 라우트의 RequireAuth가 보장하고, user는 그쪽에서 내려받는다
 function MyPage({ user }: { user: User }) {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section: MyPageSection =
+    searchParams.get("section") === "reports" ? "reports" : "account";
+
+  const setSection = (nextSection: MyPageSection) => {
+    setSearchParams(nextSection === "reports" ? { section: "reports" } : {});
+  };
+
   return (
     <main className="min-h-[calc(100svh-3.5rem)] px-4 py-12">
       <h1 className="sr-only">마이페이지</h1>
       <div className="mx-auto grid w-full max-w-4xl gap-10 md:grid-cols-[15rem_1fr] md:gap-14">
-        <IdentityRail user={user} />
+        <IdentityRail
+          user={user}
+          section={section}
+          onSectionChange={setSection}
+        />
         <div className="flex min-w-0 flex-col gap-12">
-          <ProfileSection user={user} />
-          {isApprovedBroker(user) && <MyListingsSection />}
-          <AccountSection />
+          {section === "account" ? (
+            <>
+              <ProfileSection user={user} />
+              <AgentVerificationPanel user={user} />
+              <AccountSection />
+            </>
+          ) : (
+            <ReportsSection
+              reportSaved={location.state?.reportSaved === true}
+            />
+          )}
         </div>
       </div>
     </main>
