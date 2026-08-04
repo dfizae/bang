@@ -932,7 +932,7 @@ function LandingPage() {
           {/* 영상 전체를 고르게 덮는 반투명 검정 오버레이 — 텍스트 대비 확보 */}
           <div className="absolute inset-0 bg-slate-950/60" />
 
-          {/* 모바일은 배지·제목을 정중앙에, 검색을 하단에 두고 설명·버튼은 lg부터 보인다 */}
+          {/* 모바일은 배지·제목을 정중앙에, 검색·둘러보기 버튼을 하단에 두고 설명·CTA 행은 lg부터 보인다 */}
           {/* 배경은 풀블리드지만 콘텐츠는 기존 폭으로 가운데 정렬 */}
           <div className="relative z-10 mx-auto grid h-full w-full max-w-[1180px] grid-rows-[1fr_auto] items-center justify-items-center gap-6 px-6 py-8 sm:p-9 lg:grid-cols-[1.15fr_.85fr] lg:grid-rows-1 lg:justify-items-stretch lg:gap-7 lg:p-10">
             <motion.div
@@ -947,7 +947,7 @@ function LandingPage() {
               >
                 세입자와 중개사를 잇는 1:1 라이브 투어
               </motion.p>
-              <h1 className="text-4xl leading-[1.12] font-bold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
+              <h1 className="text-[2.5rem] leading-[1.12] font-bold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
                 <motion.span variants={HERO_RISE} className="block">
                   방송으로 방을 봐
                 </motion.span>
@@ -991,6 +991,16 @@ function LandingPage() {
 
             <div className="mx-auto w-full max-w-md space-y-4">
               <HeroSearch />
+              {/* lg 미만 전용 — 숨겨진 데스크톱 CTA 대신 검색 아래에서 전체 매물로 안내한다 */}
+              <Button
+                size="lg"
+                className="h-13 w-full rounded-2xl text-base lg:hidden"
+                asChild
+              >
+                <Link to="/properties">
+                  <MapPin /> 매물 둘러보기 <ArrowRight />
+                </Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -1195,7 +1205,7 @@ function LandingPage() {
             <img
               src="/logo-symbol.png"
               alt=""
-              className="size-7 rounded-md bg-white"
+              className="h-7 w-auto rounded-md bg-white"
             />
             방방봐
           </p>
