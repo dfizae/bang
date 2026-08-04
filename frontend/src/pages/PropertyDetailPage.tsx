@@ -1266,6 +1266,12 @@ function PropertyDetailPage({
                   {property.builtYear !== undefined && (
                     <InfoRow label="준공연도">{property.builtYear}년</InfoRow>
                   )}
+                  {property.agent && (
+                    <InfoRow label="중개사">
+                      {property.agent.name}
+                      {property.agent.phone && ` · ${property.agent.phone}`}
+                    </InfoRow>
+                  )}
                 </dl>
                 {property.description && (
                   <div className="mt-6 border-t pt-4">
