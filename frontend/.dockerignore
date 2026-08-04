@@ -1,0 +1,27 @@
+node_modules
+dist
+dist-ssr
+.pnpm-store
+*.tsbuildinfo
+.git
+.gitignore
+.gitattributes
+.DS_Store
+
+# 빌드에 불필요한 문서/디자인 자산
+design.pen
+docs
+README.md
+AGENTS.md
+CLAUDE.md
+.claude
+.agents
+supanova-design-skill
+
+# Docker 관련 (빌드 컨텍스트에 포함할 필요 없음)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# NOTE: .env 는 의도적으로 제외하지 않습니다.
+# Vite 는 빌드 시점에 VITE_* 값을 번들에 인라인하므로 빌드 컨텍스트에 필요합니다.

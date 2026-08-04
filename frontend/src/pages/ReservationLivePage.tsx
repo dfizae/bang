@@ -85,6 +85,24 @@ const PEER_ROLE: Record<UserRole, UserRole> = {
   관리자: "세입자",
 };
 
+// 셀룰러(CGNAT)·사내망(대칭 NAT) 사이는 STUN만으로 P2P가 뚫리지 않아
+// TURN 중계가 필요하다. TURN 미설정(로컬 개발 등)이면 STUN만으로 시도한다
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
+  const urls = (import.meta.env.VITE_TURN_URLS ?? "")
+    .split(",")
+    .map((url: string) => url.trim())
+    .filter(Boolean);
+  const username = import.meta.env.VITE_TURN_USERNAME;
+  const credential = import.meta.env.VITE_TURN_CREDENTIAL;
+
+  if (urls.length > 0 && username && credential) {
+    servers.push({ urls, username, credential });
+  }
+  return servers;
+}
+
 // 백엔드 SignalHandler 프로토콜 — OFFER/ANSWER는 sdp 원문, ICE 후보는 평탄화된
 // 필드로 오간다. 정원 초과는 ERROR 후 서버가 1008(Policy Violation)로 소켓을 닫는다
 interface SignalMessage {
@@ -210,18 +228,19 @@ function LocalTileNotice({
   return null;
 }
 
-// 스스로 풀리지 않아 사용자가 손을 써야 하는 상태
+// 스스로 풀리지 않아 사용자가 손을 써야 하는 상태.
+// 상대가 나간 경우는 재입장(PEER_JOINED) 때 자동으로 재협상되므로 넣지 않는다 —
+// 여기서 재시도(퇴장 후 재입장)를 누르면 멀쩡한 상대를 도로 내쫓는 핑퐁이 된다
 const RECOVERABLE_STATUS: Record<SessionStatus, boolean> = {
   connecting: false,
   waiting: false,
   connected: false,
-  "peer-left": true,
+  "peer-left": false,
   "room-full": true,
   error: true,
 };
 
 const RETRY_LABEL: Partial<Record<SessionStatus, string>> = {
-  "peer-left": "다시 연결",
   "room-full": "다시 입장",
   error: "다시 시도",
 };
@@ -511,8 +530,64 @@ function ReservationLivePage() {
     let pc: RTCPeerConnection | null = null;
     let ws: WebSocket | null = null;
     let localStream: MediaStream | null = null;
-    // 원격 description 설정 전에 도착한 ICE 후보 보관
-    const pendingCandidates: RTCIceCandidateInit[] = [];
+    // 원격 description 설정 전에 도착한 ICE 후보 보관 — 연결을 갈아끼울 때 함께 비운다
+    let pendingCandidates: RTCIceCandidateInit[] = [];
+
+    const send = (message: SignalMessage) => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
+    };
+
+    // 협상 이력(ICE 자격 등)이 남은 연결로는 새 상대와 재협상이 성립하지 않으므로,
+    // 상대가 바뀌거나 나갈 때마다 RTCPeerConnection을 새로 만들어 교체한다
+    const resetPeerConnection = () => {
+      pc?.close();
+      pendingCandidates = [];
+
+      const next = new RTCPeerConnection({ iceServers: buildIceServers() });
+      pc = next;
+
+      if (localStream) {
+        for (const track of localStream.getTracks()) {
+          next.addTrack(track, localStream);
+        }
+      } else {
+        // 장치가 없어도 상대 영상은 수신할 수 있게 recvonly로 입장
+        next.addTransceiver("video", { direction: "recvonly" });
+        next.addTransceiver("audio", { direction: "recvonly" });
+      }
+
+      next.ontrack = ({ streams: [stream] }) => {
+        if (remoteVideoRef.current && stream) {
+          remoteVideoRef.current.srcObject = stream;
+        }
+      };
+
+      next.onconnectionstatechange = () => {
+        if (next.connectionState === "connected") {
+          setStatus("connected");
+        }
+        // disconnected는 일시적 유실이라 스스로 복구될 수 있어 failed만 실패로 본다
+        if (next.connectionState === "failed") {
+          setStatus("error");
+        }
+      };
+
+      next.onicecandidate = ({ candidate }) => {
+        // 릴레이는 후보를 평탄화된 필드로 받는다 — 종료 신호(null)는 보내지 않는다
+        if (candidate) {
+          send({
+            type: "ICE_CANDIDATE",
+            candidate: candidate.candidate,
+            sdpMid: candidate.sdpMid ?? undefined,
+            sdpMLineIndex: candidate.sdpMLineIndex ?? undefined,
+          });
+        }
+      };
+
+      return next;
+    };
 
     async function start() {
       try {
@@ -536,68 +611,19 @@ function ReservationLivePage() {
         localVideoRef.current.srcObject = localStream;
       }
 
-      pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-        ],
-      });
-
-      if (localStream) {
-        for (const track of localStream.getTracks()) {
-          pc.addTrack(track, localStream);
-        }
-      } else {
-        // 장치가 없어도 상대 영상은 수신할 수 있게 recvonly로 입장
-        pc.addTransceiver("video", { direction: "recvonly" });
-        pc.addTransceiver("audio", { direction: "recvonly" });
-      }
-
-      pc.ontrack = ({ streams: [stream] }) => {
-        if (remoteVideoRef.current && stream) {
-          remoteVideoRef.current.srcObject = stream;
-        }
-      };
-
-      pc.onconnectionstatechange = () => {
-        if (!pc) {
-          return;
-        }
-        if (pc.connectionState === "connected") {
-          setStatus("connected");
-        }
-        if (pc.connectionState === "failed") {
-          setStatus("error");
-        }
-      };
+      resetPeerConnection();
 
       // 접속 토큰(roomToken·accessToken)은 signalingUrl 쿼리에 이미 들어 있다
       ws = new WebSocket(wsUrl);
 
-      const send = (message: SignalMessage) => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
-        }
-      };
-
-      pc.onicecandidate = ({ candidate }) => {
-        // 릴레이는 후보를 평탄화된 필드로 받는다 — 종료 신호(null)는 보내지 않는다
-        if (candidate) {
-          send({
-            type: "ICE_CANDIDATE",
-            candidate: candidate.candidate,
-            sdpMid: candidate.sdpMid ?? undefined,
-            sdpMLineIndex: candidate.sdpMLineIndex ?? undefined,
-          });
-        }
-      };
-
       ws.onerror = () => setStatus("error");
-      // 정원 초과는 서버가 ERROR를 보낸 뒤 1008(Policy Violation)로 소켓을 닫는다
       ws.onclose = (event) => {
-        if (!disposed && event.code === 1008) {
-          setStatus("room-full");
+        if (disposed) {
+          return;
         }
+        // 정원 초과는 서버가 ERROR를 보낸 뒤 1008(Policy Violation)로 소켓을 닫는다.
+        // 그 외의 끊김(토큰 만료·네트워크 단절)도 재시도로 재입장하게 알린다
+        setStatus(event.code === 1008 ? "room-full" : "error");
       };
 
       ws.onmessage = async (event) => {
@@ -614,15 +640,22 @@ function ReservationLivePage() {
               setStatus("waiting");
             }
             break;
-          case "PEER_JOINED":
-            await pc.setLocalDescription();
-            send({ type: "OFFER", sdp: pc.localDescription?.sdp });
+          case "PEER_JOINED": {
+            // 첫 입장이든 나갔던 상대의 재입장이든, 협상 이력이 없는
+            // 새 연결에서 오퍼를 만들어야 ICE가 처음부터 다시 뚫린다
+            setStatus("connecting");
+            const fresh = resetPeerConnection();
+            await fresh.setLocalDescription();
+            send({ type: "OFFER", sdp: fresh.localDescription?.sdp });
             break;
+          }
           case "PEER_LEFT":
             setStatus("peer-left");
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = null;
             }
+            // 실패한 연결을 정리해 두고 상대의 재입장(PEER_JOINED)을 기다린다
+            resetPeerConnection();
             break;
           case "OFFER": {
             if (!message.sdp) {
