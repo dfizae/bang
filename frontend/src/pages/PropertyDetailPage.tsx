@@ -1143,13 +1143,16 @@ function PropertyDetailPage({
                 />
                 {property.saved ? "저장됨" : "저장"}
               </Button>
-              <Button
-                className="h-11 flex-1"
-                onClick={() => onReserve(property.propertyId)}
-              >
-                <CalendarPlus />
-                미팅 예약
-              </Button>
+              {/* 내가 등록한 매물에는 나 자신과의 예약을 열지 않는다 */}
+              {!canManage && (
+                <Button
+                  className="h-11 flex-1"
+                  onClick={() => onReserve(property.propertyId)}
+                >
+                  <CalendarPlus />
+                  미팅 예약
+                </Button>
+              )}
             </div>
 
             <NearbyFacilitiesSection
