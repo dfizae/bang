@@ -1,42 +1,64 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+  다크 모드는 사용하지 않음(라이트 전용). 아래 정의는 shadcn/ui 기본 컴포넌트에
+  남아 있는 `dark:` 유틸리티를 클래스 기반(비활성)으로 묶어두기 위한 것 —
+  `.dark` 클래스는 어디에서도 부여되지 않으므로 실제로 적용되지 않는다.
+*/
 @custom-variant dark (&:is(.dark *));
 
+/* 가로 스크롤은 유지하되 스크롤바만 숨긴다 (모바일 칩 행 등) */
+@utility scrollbar-hidden {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /*
-  방방봐 디자인 토큰 — 블루 계열 신뢰(trust) 톤.
-  primary = blue-600, 배경/보더는 slate 블루 틴트, ring/accent 블루 강조.
+  방방봐 디자인 토큰 — design.pen 시안의 블루 신뢰 톤.
 */
 :root {
   --radius: 0.625rem;
+  /* GlobalNav 실제 점유 높이 — nav h-14(3.5rem) + header border-b 1px.
+     전체 화면을 쓰는 페이지가 100svh에서 빼는 값이라 nav 높이를 바꾸면 여기도 함께 고친다 */
+  --nav-h: calc(3.5rem + 1px);
+  /* 모바일 탭바가 실제로 가리는 높이 — sm 미만에서만 존재한다.
+     전체 화면 페이지와 body 하단 여백이 같은 값을 써야 하므로 토큰으로 묶는다 */
+  --tabbar-h: calc(4rem + env(safe-area-inset-bottom));
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.208 0.042 265.8);
+  --background: #ffffff;
+  --foreground: #0f172b;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.8);
+  --card: #ffffff;
+  --card-foreground: #0f172b;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.8);
+  --popover: #ffffff;
+  --popover-foreground: #0f172b;
 
-  --primary: oklch(0.546 0.245 262.9);
-  --primary-foreground: oklch(0.984 0.003 247.9);
+  --primary: #165dfc;
+  --primary-foreground: #f8fafc;
 
-  --secondary: oklch(0.968 0.007 247.9);
-  --secondary-foreground: oklch(0.279 0.041 260);
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1d293d;
 
-  --muted: oklch(0.968 0.007 247.9);
-  --muted-foreground: oklch(0.554 0.046 257.4);
+  --muted: #f1f5f9;
+  --muted-foreground: #62748e;
 
-  --accent: oklch(0.95 0.02 255);
-  --accent-foreground: oklch(0.488 0.243 264.4);
+  --accent: #e6effc;
+  --accent-foreground: #1447e6;
 
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.9);
+  --destructive: #e7000b;
+  --destructive-foreground: #f8fafc;
 
-  --border: oklch(0.929 0.013 255.5);
-  --input: oklch(0.929 0.013 255.5);
-  --ring: oklch(0.546 0.245 262.9);
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #165dfc;
+
+  --marker-jeonse: #165dfc;
+  --marker-monthly: #0f8f7a;
+  --marker-sale: #d95d39;
 
   --chart-1: oklch(0.546 0.245 262.9);
   --chart-2: oklch(0.623 0.214 259.8);
@@ -55,53 +77,14 @@
 }
 
 .dark {
-  --background: oklch(0.208 0.042 265.8);
-  --foreground: oklch(0.984 0.003 247.9);
-
-  --card: oklch(0.279 0.041 260);
-  --card-foreground: oklch(0.984 0.003 247.9);
-
-  --popover: oklch(0.279 0.041 260);
-  --popover-foreground: oklch(0.984 0.003 247.9);
-
-  --primary: oklch(0.623 0.214 259.8);
-  --primary-foreground: oklch(0.984 0.003 247.9);
-
-  --secondary: oklch(0.279 0.041 260);
-  --secondary-foreground: oklch(0.984 0.003 247.9);
-
-  --muted: oklch(0.279 0.041 260);
-  --muted-foreground: oklch(0.704 0.04 256.8);
-
-  --accent: oklch(0.34 0.05 262);
-  --accent-foreground: oklch(0.882 0.059 254.1);
-
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.9);
-
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.623 0.214 259.8);
-
-  --chart-1: oklch(0.623 0.214 259.8);
-  --chart-2: oklch(0.707 0.165 254.6);
-  --chart-3: oklch(0.809 0.105 251.8);
-  --chart-4: oklch(0.546 0.245 262.9);
-  --chart-5: oklch(0.882 0.059 254.1);
-
-  --sidebar: oklch(0.279 0.041 260);
-  --sidebar-foreground: oklch(0.984 0.003 247.9);
-  --sidebar-primary: oklch(0.623 0.214 259.8);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.9);
-  --sidebar-accent: oklch(0.34 0.05 262);
-  --sidebar-accent-foreground: oklch(0.882 0.059 254.1);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.623 0.214 259.8);
+  --marker-jeonse: #165dfc;
+  --marker-monthly: #0f8f7a;
+  --marker-sale: #d95d39;
 }
 
 @theme inline {
-  --font-sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont,
-    system-ui, sans-serif;
+  --font-sans:
+    "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -146,9 +129,23 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Tailwind 4 preflight는 버튼 커서를 default로 되돌린다 — 누를 수 있는 것은 손가락 커서로 보이게 한다 */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  label:has(> input[type="file"]) {
+    cursor: pointer;
+  }
   body {
     @apply bg-background text-foreground;
     /* 한글 단어 중간 줄바꿈 방지 */
     word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@media (max-width: 639px) {
+  body:has([data-mobile-tabbar]) {
+    padding-bottom: var(--tabbar-h);
   }
 }

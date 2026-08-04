@@ -1,0 +1,18 @@
+# 모든 텍스트 파일을 LF로 정규화 (작업 OS와 무관하게 저장소는 항상 LF)
+* text=auto eol=lf
+
+# 바이너리 — 줄바꿈 변환 금지
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.mp4   binary
+*.webm  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.pdf   binary
+*.pen   binary

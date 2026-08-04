@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 42 48">
+  <defs><filter id="s" x="-30%" y="-20%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#0f172a" flood-opacity=".24"/></filter></defs>
+  <g filter="url(#s)">
+    <path fill="#165dfc" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" d="M21 2.25c-10.3 0-17.75 7.4-17.75 17 0 11.4 11.82 23 16.19 27.03a2.3 2.3 0 0 0 3.12 0c4.37-4.03 16.19-15.63 16.19-27.03 0-9.6-7.45-17-17.75-17Z"/>
+    <circle cx="21" cy="19" r="10.5" fill="#fff"/>
+    <text x="21" y="19" dy=".35em" fill="#165dfc" font-family="IBM Plex Sans KR, Malgun Gothic, sans-serif" font-size="14.5" font-weight="700" text-anchor="middle">빌</text>
+  </g>
+</svg>
