@@ -96,6 +96,7 @@ const STATUS_TONE: Record<MeetingStatus, string> = {
   OPEN: "border-amber-200 bg-amber-50 text-amber-700",
   REQUESTED: "border-amber-200 bg-amber-50 text-amber-700",
   CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  COMPLETED: "border-blue-200 bg-blue-50 text-blue-700",
   REJECTED: "border-slate-200 bg-slate-100 text-slate-600",
   CANCELED: "border-slate-200 bg-slate-100 text-slate-600",
 };
@@ -104,6 +105,7 @@ const STATUS_DOT: Record<MeetingStatus, string> = {
   OPEN: "bg-amber-500",
   REQUESTED: "bg-amber-500",
   CONFIRMED: "bg-emerald-500",
+  COMPLETED: "bg-blue-500",
   REJECTED: "bg-slate-400",
   CANCELED: "bg-slate-400",
 };
@@ -172,6 +174,9 @@ function ReservationPage() {
   const activeId = meetings.some((meeting) => meeting.meetingId === selectedId)
     ? selectedId
     : meetings[0]?.meetingId;
+  const activeMeeting = meetings.find(
+    (meeting) => meeting.meetingId === activeId,
+  );
 
   const totalPages = activeQuery.data?.totalPages ?? 1;
   const confirmedCount = fetched.filter(
@@ -347,7 +352,10 @@ function ReservationPage() {
 
           <Card className="gap-3 py-4">
             <CardContent className="px-4">
-              <ReservationChecklist meetingId={activeId} />
+              <ReservationChecklist
+                meetingId={activeId}
+                meetingStatus={activeMeeting?.status}
+              />
             </CardContent>
           </Card>
         </div>

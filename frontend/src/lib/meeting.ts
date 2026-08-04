@@ -15,6 +15,7 @@ export const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
   OPEN: "예약 대기",
   REQUESTED: "예약 대기",
   CONFIRMED: "예약 확정",
+  COMPLETED: "미팅 완료",
   REJECTED: "요청 거절",
   CANCELED: "예약 취소",
 };

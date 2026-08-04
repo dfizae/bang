@@ -164,11 +164,7 @@ function App() {
         />
         <Route
           path="/reports/:reportId"
-          element={
-            <RequireAuth>
-              {(user) => <ReportDetailPage user={user} />}
-            </RequireAuth>
-          }
+          element={<RequireAuth>{() => <ReportDetailPage />}</RequireAuth>}
         />
         <Route
           path="/booking/:id"

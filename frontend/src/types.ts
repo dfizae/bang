@@ -147,7 +147,7 @@ export type PropertyUpdateInput = Omit<PropertyCreateInput, "environment">;
 
 // ── 회의 API 계약 (Swagger /api/meetings) ────────────────────────────────
 export type MeetingStatus =
-  "OPEN" | "REQUESTED" | "CONFIRMED" | "REJECTED" | "CANCELED";
+  "OPEN" | "REQUESTED" | "CONFIRMED" | "COMPLETED" | "REJECTED" | "CANCELED";
 
 // 희망 시간 순위 — 중개사가 확정할 때 preferredRank로 지정한다
 export type PreferredRank = 1 | 2 | 3;

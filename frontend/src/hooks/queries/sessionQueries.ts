@@ -1,9 +1,4 @@
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   createSession,
@@ -43,11 +38,9 @@ export function useLiveSession(meetingId: number | undefined) {
 }
 
 export function useEndSession(meetingId: number) {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (sessionId: number) => endSession(sessionId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: sessionKeys.join(meetingId) }),
+    mutationKey: [...sessionKeys.join(meetingId), "end"],
   });
 }
 

@@ -45,7 +45,7 @@ import {
   useLiveSession,
   useUploadSessionCapture,
 } from "@/hooks/queries/sessionQueries";
-import { useSavePropertyReport } from "@/hooks/queries/reportQueries";
+import { useCreateReport } from "@/hooks/queries/reportQueries";
 import {
   type SessionCapture,
   useSessionCaptures,
@@ -53,7 +53,6 @@ import {
 import { useInspectionStream } from "@/hooks/useInspectionStream";
 import { useVideoAspect } from "@/hooks/useVideoAspect";
 import { formatMeetingDateTime, getMeetingDateTime } from "@/lib/meeting";
-import { evaluateChecklist } from "@/lib/reportStorage";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import type { UserRole } from "@/types";
@@ -411,6 +410,7 @@ function ReservationLivePage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const sessionEndedRef = useRef(false);
 
   const [status, setStatus] = useState<SessionStatus>("connecting");
   const [micOn, setMicOn] = useState(true);
@@ -497,8 +497,8 @@ function ReservationLivePage() {
   const { captures, capture, removeCapture } = useSessionCaptures(
     primaryTile.videoRef,
   );
-  const { mutateAsync: saveReport, isPending: isSavingReport } =
-    useSavePropertyReport(user?.id ?? -1);
+  const { mutateAsync: createSessionReport, isPending: isSavingReport } =
+    useCreateReport();
   const { mutateAsync: endLiveSession, isPending: isEndingSession } =
     useEndSession(meetingId);
   const { mutateAsync: uploadCapture, isPending: isUploadingCapture } =
@@ -506,7 +506,7 @@ function ReservationLivePage() {
   const [reportError, setReportError] = useState<string | null>(null);
 
   const leaveSession = async () => {
-    if (!user || !meeting || !property || !session) {
+    if (!session) {
       setReportError(
         "리포트 정보를 준비하지 못했어요. 잠시 후 다시 시도해 주세요.",
       );
@@ -515,7 +515,7 @@ function ReservationLivePage() {
 
     setReportError(null);
     try {
-      const reportCaptures = await Promise.all(
+      await Promise.all(
         captures.map(async (item) => {
           const image = await fetch(item.url).then((response) =>
             response.blob(),
@@ -524,37 +524,40 @@ function ReservationLivePage() {
             sessionId: session.sessionId,
             image,
           });
-          return {
-            id: String(stored.captureId),
-            createdAt: stored.capturedAt,
-            imageUrl: stored.imageUrl,
-          };
+          return stored;
         }),
       );
-      const endedSession = await endLiveSession(session.sessionId);
-      await saveReport({
-        reportId: `${user.id}:${endedSession.sessionId}`,
-        userId: user.id,
-        meetingId: meeting.meetingId,
-        propertyId: property.propertyId,
-        propertyTitle: property.title,
-        propertyAddress: `${property.sigungu} ${property.dong}`.trim(),
-        transactionType: property.transactionType,
-        roomType: property.roomType,
-        deposit: property.deposit,
-        monthlyRent: property.monthlyRent,
-        createdAt: endedSession.endedAt,
-        checklistItems,
-        captures: reportCaptures,
-        evaluation: evaluateChecklist(checklistItems),
-      });
+    } catch (error) {
+      setReportError(
+        `현장 캡처 저장 실패: ${isApiError(error) ? error.message : "잠시 후 다시 시도해 주세요."}`,
+      );
+      return;
+    }
+
+    if (!sessionEndedRef.current) {
+      try {
+        await endLiveSession(session.sessionId);
+        sessionEndedRef.current = true;
+      } catch (error) {
+        setReportError(
+          `미팅 종료 요청 실패: ${isApiError(error) ? error.message : "잠시 후 다시 시도해 주세요."}`,
+        );
+        return;
+      }
+    }
+
+    try {
+      await createSessionReport(session.sessionId);
       navigate("/mypage?section=reports", {
         state: { reportSaved: true },
       });
-    } catch {
-      setReportError(
-        "리포트를 저장하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해 주세요.",
-      );
+    } catch (error) {
+      const reportFailure = isApiError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "잠시 후 다시 시도해 주세요.";
+      setReportError(`AI 리포트 생성 요청 실패: ${reportFailure}`);
     }
   };
 
@@ -1038,9 +1041,18 @@ function ReservationLivePage() {
               계속 점검하기
             </Button>
             {reportError && (
-              <p role="alert" className="text-sm text-destructive">
-                {reportError}
-              </p>
+              <div className="flex flex-col items-start gap-2">
+                <p role="alert" className="text-sm text-destructive">
+                  {reportError}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/reservations")}
+                >
+                  저장 없이 나가기
+                </Button>
+              </div>
             )}
             <Button
               variant="destructive"

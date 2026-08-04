@@ -357,12 +357,40 @@ function OfficeInfoRow({ label, value }: { label: string; value?: string }) {
 // 중개사 인증 — 등록번호·서류 제출 후 관리자 수동 승인
 function AgentVerificationPanel({ user }: { user: User }) {
   const [applyOpen, setApplyOpen] = useState(false);
+  const approvedBroker = isApprovedBroker(user);
   const {
     data: verification,
     isPending,
     isError,
     refetch,
-  } = useMyAgentVerification();
+  } = useMyAgentVerification(!approvedBroker);
+
+  if (approvedBroker) {
+    return (
+      <section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">중개사 인증</h2>
+          <Badge
+            variant="outline"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700"
+          >
+            <CheckCircle2 className="size-3.5" /> 인증 완료
+          </Badge>
+        </div>
+        <div className="mt-3 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">
+              중개사 인증이 완료되었습니다.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-emerald-700">
+              매물 등록과 중개사 전용 기능을 이용할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -773,20 +801,10 @@ export function MyListingsSection() {
   );
 }
 
-function ReportsSection({
-  userId,
-  reportSaved,
-}: {
-  userId: number;
-  reportSaved: boolean;
-}) {
+function ReportsSection({ reportSaved }: { reportSaved: boolean }) {
   const navigate = useNavigate();
-  const {
-    data: reports = [],
-    isPending,
-    isError,
-    refetch,
-  } = usePropertyReports(userId);
+  const { data, isPending, isError, refetch } = usePropertyReports();
+  const reports = data?.content ?? [];
 
   return (
     <section>
@@ -797,7 +815,7 @@ function ReportsSection({
           className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700"
         >
           <CheckCircle2 className="size-4 shrink-0" />
-          미팅이 종료되어 매물 리포트에 안전하게 저장되었습니다.
+          미팅 점검 기록이 저장되었습니다.
         </p>
       )}
       {isPending ? (
@@ -816,7 +834,7 @@ function ReportsSection({
         </div>
       ) : reports.length === 0 ? (
         <p className="py-6 text-sm text-muted-foreground">
-          영상통화를 종료하면 해당 매물의 리포트가 여기에 저장됩니다.
+          영상통화를 마치면 해당 매물의 점검 기록이 여기에 저장됩니다.
         </p>
       ) : (
         <ul>
@@ -838,7 +856,7 @@ function ReportsSection({
                     {report.propertyTitle}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {report.propertyAddress}
+                    미팅 {formatDateTime(report.meetingDate)}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
                     {formatDateTime(report.createdAt)}
@@ -978,7 +996,6 @@ function MyPage({ user }: { user: User }) {
             </>
           ) : (
             <ReportsSection
-              userId={user.id}
               reportSaved={location.state?.reportSaved === true}
             />
           )}

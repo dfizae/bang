@@ -13,6 +13,7 @@ import {
   updateChecklistItem,
   updateChecklistItemStatus,
 } from "@/api/checklist";
+import { isApiError } from "@/api/error";
 import type { Checklist, ChecklistItemStatus } from "@/types";
 
 export { MAX_CHECKLIST_ITEMS } from "@/api/checklist";
@@ -29,6 +30,9 @@ export const checklistOptions = (meetingId: number) =>
   queryOptions({
     queryKey: checklistKeys.detail(meetingId),
     queryFn: ({ signal }) => getChecklist(meetingId, signal),
+    // CHECKLIST_NOT_FOUND 같은 4xx는 재시도해도 생성되지 않는다. 일시적인 서버 오류만 재시도한다.
+    retry: (failureCount, error) =>
+      (!isApiError(error) || error.status >= 500) && failureCount < 2,
   });
 
 // meetingId가 없으면(선택된 예약 없음) 요청을 보내지 않는다
