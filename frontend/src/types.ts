@@ -202,12 +202,6 @@ export interface PriceBand {
   min: number;
   max: number;
 }
-
-export interface Memo {
-  id: number;
-  text: string;
-  createdAt: string;
-}
 export type ChecklistItemStatus = "PENDING" | "COMPLETED" | "ISSUE_FOUND";
 
 export interface ChecklistItem {

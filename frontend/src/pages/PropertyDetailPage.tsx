@@ -4,7 +4,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type ComponentProps,
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -53,17 +52,7 @@ import {
 } from "@/lib/nearbyFacilities";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
-import type { FacilityCategory, Memo, NearbyFacility } from "@/types";
-
-// shadcn Textarea 미설치 → Input과 동일 토큰으로 스타일링한 로컬 textarea
-function MemoTextarea(props: ComponentProps<"textarea">) {
-  return (
-    <textarea
-      className="min-h-12 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      {...props}
-    />
-  );
-}
+import type { FacilityCategory, NearbyFacility } from "@/types";
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -744,152 +733,6 @@ function NearbyFacilitiesSection({
   );
 }
 
-function formatMemoDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-interface MemoSectionProps {
-  memos: Memo[];
-  onAdd: (text: string) => void;
-  onUpdate: (memoId: number, text: string) => void;
-  onDelete: (memoId: number) => void;
-}
-
-// MEMO-01~04: 메모 작성·조회·수정·삭제
-function MemoSection({ memos, onAdd, onUpdate, onDelete }: MemoSectionProps) {
-  const [draft, setDraft] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
-
-  const submitDraft = () => {
-    const text = draft.trim();
-    if (!text) {
-      return;
-    }
-    onAdd(text);
-    setDraft("");
-  };
-
-  const startEdit = (memo: Memo) => {
-    setEditingId(memo.id);
-    setEditText(memo.text);
-  };
-
-  const submitEdit = () => {
-    const text = editText.trim();
-    if (!text || editingId === null) {
-      return;
-    }
-    onUpdate(editingId, text);
-    setEditingId(null);
-  };
-
-  return (
-    <Card className="gap-2 py-3">
-      <CardHeader className="px-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">메모</CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {memos.length}개
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2 px-4">
-        {memos.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            작성한 메모가 없습니다.
-          </p>
-        ) : (
-          <ul className="max-h-24 space-y-1.5 overflow-y-auto">
-            {memos.map((memo) => (
-              <li key={memo.id} className="rounded-md border bg-muted/40 p-2">
-                {editingId === memo.id ? (
-                  <div className="flex flex-col gap-2">
-                    <MemoTextarea
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      aria-label="메모 수정"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingId(null)}
-                      >
-                        취소
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={submitEdit}
-                        disabled={!editText.trim()}
-                      >
-                        저장
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="line-clamp-2 text-xs whitespace-pre-wrap">
-                      {memo.text}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground">
-                        {formatMemoDate(memo.createdAt)}
-                      </span>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          aria-label="메모 수정"
-                          onClick={() => startEdit(memo)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-destructive hover:text-destructive"
-                          aria-label="메모 삭제"
-                          onClick={() => onDelete(memo.id)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="flex flex-col gap-2">
-          <MemoTextarea
-            placeholder="이 매물에 대한 메모를 남겨보세요"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            aria-label="메모 작성"
-          />
-          <Button
-            className="h-7 self-end px-3 text-xs"
-            size="sm"
-            onClick={submitDraft}
-            disabled={!draft.trim()}
-          >
-            메모 작성
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // PROP-08·09 중개사 전용 수정·삭제 — 삭제는 확인 다이얼로그를 거친다
 function BrokerActions({
   onEdit,
@@ -1103,10 +946,6 @@ interface PropertyDetailPageProps {
   onEdit: () => void;
   // 삭제 실패를 다이얼로그에서 알려야 하므로 완료를 기다릴 수 있게 Promise를 받는다
   onDelete: () => Promise<void>;
-  memos: Memo[];
-  onAddMemo: (text: string) => void;
-  onUpdateMemo: (memoId: number, text: string) => void;
-  onDeleteMemo: (memoId: number) => void;
 }
 
 // PAGE-05 매물 상세 — 매물 정보(PROP-03, GET /api/properties/{id}), 저장(PROP-04·05), 예약,
@@ -1118,10 +957,6 @@ function PropertyDetailPage({
   onReserve,
   onEdit,
   onDelete,
-  memos,
-  onAddMemo,
-  onUpdateMemo,
-  onDeleteMemo,
 }: PropertyDetailPageProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const {
@@ -1323,13 +1158,6 @@ function PropertyDetailPage({
               propertyAddress={
                 property.roadAddress ?? `${property.sigungu} ${property.dong}`
               }
-            />
-
-            <MemoSection
-              memos={memos}
-              onAdd={onAddMemo}
-              onUpdate={onUpdateMemo}
-              onDelete={onDeleteMemo}
             />
 
             <PhotoDialog
