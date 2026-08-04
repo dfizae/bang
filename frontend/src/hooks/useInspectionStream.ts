@@ -1,10 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-import {
-  completeInspection,
-  createInspectionSession,
-  inspectFrame,
-} from "@/api/inspection";
+import { createInspectionSession, inspectFrame } from "@/api/inspection";
 
 const FRAME_INTERVAL_MS = 1_000;
 // AI 서버 권장 입력 크기 — 긴 변 960px (클수록 탐지 정확도가 좋다)
@@ -15,8 +11,10 @@ const JPEG_QUALITY = 0.85;
 // 서버가 후보로 채택(saved)한 프레임의 원본 blob을 candidate_id로 보관해 두어,
 // 추후 백엔드 세션 캡처 저장(POST /api/sessions/{id}/captures)에 그대로 쓸 수 있다.
 // 이전 요청이 끝나기 전에는 다음 프레임을 건너뛰어 전송이 밀리지 않게 한다.
-// 프레임·완료 요청은 AI 세션 생성이 끝난 뒤에만 나가므로, 백엔드 세션 id가
-// 정해지기 전에는 스트림을 시작하지 않는다
+// 프레임 요청은 AI 세션 생성이 끝난 뒤에만 나가므로, 백엔드 세션 id가
+// 정해지기 전에는 스트림을 시작하지 않는다.
+// 검수 완료(/complete)는 세션 종료(PATCH /end) 때 백엔드가 호출한다 — 프론트가
+// 먼저 닫으면 백엔드의 완료 요청이 실패하므로 여기서는 절대 부르지 않는다
 export function useInspectionStream(
   videoRef: RefObject<HTMLVideoElement | null>,
   backendSessionId: number | undefined,
@@ -93,9 +91,9 @@ export function useInspectionStream(
 
     void createInspectionSession(backendSessionId)
       .then((session) => {
-        // 생성 응답이 정리 이후에 도착하면 프레임을 보내지 않고 세션만 닫는다
+        // 생성 응답이 정리 이후에 도착하면 프레임을 보내지 않는다 —
+        // 안 쓰인 세션은 백엔드 종료(end) 또는 expires_at 만료가 정리한다
         if (disposed) {
-          void completeInspection(session.session_id).catch(() => undefined);
           return;
         }
         sessionId = session.session_id;
@@ -111,11 +109,6 @@ export function useInspectionStream(
     return () => {
       disposed = true;
       window.clearInterval(intervalId);
-      if (sessionId) {
-        // TBD: complete가 돌려주는 findings와 보관한 blob을 백엔드
-        // 세션 캡처 API로 저장 (연동 방식 확정 후 — 현재는 검수 종료만 알린다)
-        void completeInspection(sessionId).catch(() => undefined);
-      }
       candidateBlobs.clear();
       setCandidateCount(0);
     };

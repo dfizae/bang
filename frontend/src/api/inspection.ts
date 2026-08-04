@@ -33,28 +33,6 @@ export interface FrameResult {
   annotated_image?: string | null;
 }
 
-export interface InspectionFinding {
-  finding_id: string;
-  class_name: string;
-  confidence: number;
-  room_name: string | null;
-  captured_at: string;
-  image_url?: string | null;
-  image_filename?: string | null;
-  bbox: [number, number, number, number];
-}
-
-export interface InspectionResult {
-  session_id: string;
-  status: string;
-  total_frames: number;
-  detected_frames: number;
-  selected_findings: number;
-  findings: InspectionFinding[];
-  // AI 서버가 백엔드에 결과를 직접 전달한 경우 그 응답 원문
-  backend_response?: Record<string, unknown> | null;
-}
-
 // AI 검수 세션은 백엔드 RTC 세션(sessionId)에 종속된다 — 검수 결과를 AI 서버가
 // 백엔드로 직접 넘길 때의 매핑 키라서 생성 요청 본문에 반드시 포함해야 한다
 export function createInspectionSession(
@@ -97,10 +75,5 @@ export function inspectFrame(
     .then((response) => response.data);
 }
 
-export function completeInspection(
-  sessionId: string,
-): Promise<InspectionResult> {
-  return aiClient
-    .post<InspectionResult>(`/v1/inspection-sessions/${sessionId}/complete`)
-    .then((response) => response.data);
-}
+// 검수 완료(POST /complete)는 의도적으로 여기 없다 — 세션 종료(PATCH /end) 때
+// 백엔드가 호출하는 백엔드 전용 엔드포인트다 (AI 서버 운영자 요청으로 프론트 호출 제거)

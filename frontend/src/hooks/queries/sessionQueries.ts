@@ -4,6 +4,7 @@ import {
   createSession,
   endSession,
   joinSession,
+  leaveSession,
   uploadUserCapture,
 } from "@/api/session";
 
@@ -41,6 +42,13 @@ export function useEndSession(meetingId: number) {
   return useMutation({
     mutationFn: (sessionId: number) => endSession(sessionId),
     mutationKey: [...sessionKeys.join(meetingId), "end"],
+  });
+}
+
+export function useLeaveSession(meetingId: number) {
+  return useMutation({
+    mutationFn: (sessionId: number) => leaveSession(sessionId),
+    mutationKey: [...sessionKeys.join(meetingId), "leave"],
   });
 }
 
