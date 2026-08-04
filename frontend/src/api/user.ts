@@ -22,11 +22,11 @@ interface UserResponse {
 }
 
 // 백엔드가 허용하는 수정 필드 — 이름·이메일은 본인 확인 정보라 수정 대상이 아니다
-interface UserUpdateRequest {
+type UserUpdateRequest = Partial<{
   nickname: string;
   birth: string;
   phone: string;
-}
+}>;
 
 interface ProfileImageResponse {
   profileImage: string;
@@ -72,12 +72,10 @@ export async function getMyInfo(signal?: AbortSignal): Promise<User> {
   return toUser(dto);
 }
 
-export async function updateMyInfo(changes: UserProfileChanges): Promise<User> {
-  const body: UserUpdateRequest = {
-    nickname: changes.nickname,
-    birth: changes.birth,
-    phone: changes.phone,
-  };
+export async function updateMyInfo(
+  changes: Partial<UserProfileChanges>,
+): Promise<User> {
+  const body: UserUpdateRequest = changes;
   const dto = await api.patch<UserResponse>({ path: "/api/users/me", body });
   return toUser(dto);
 }

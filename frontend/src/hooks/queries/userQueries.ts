@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import type { User, UserProfileChanges } from "@/types";
 
 export interface ProfileUpdateInput {
-  changes: UserProfileChanges;
+  changes: Partial<UserProfileChanges>;
   // 이미지를 새로 고르지 않았으면 생략 — 이미지 요청 자체를 보내지 않는다
   imageFile?: File;
 }
@@ -21,8 +21,9 @@ export function useUpdateProfile() {
       changes,
       imageFile,
     }: ProfileUpdateInput): Promise<User> => {
+      const hasTextChanges = Object.keys(changes).length > 0;
       const [user, profileImageUrl] = await Promise.all([
-        updateMyInfo(changes),
+        hasTextChanges ? updateMyInfo(changes) : getMyInfo(),
         imageFile ? updateMyProfileImage(imageFile) : undefined,
       ]);
       return profileImageUrl ? { ...user, profileImageUrl } : user;

@@ -52,6 +52,17 @@ const PROVIDER_LABEL: Record<AuthProvider, string> = {
 // 백엔드 UserUpdateRequest가 요구하는 형식 — 400을 받기 전에 폼에서 먼저 걸러낸다
 const PHONE_PATTERN = /^010-\d{4}-\d{4}$/;
 
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) {
+    return digits;
+  }
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
 type MyPageSection = "account" | "reports";
 
 function IdentityRail({
@@ -191,16 +202,23 @@ function ProfileEditField({
   name,
   type = "text",
   defaultValue,
+  onChange,
 }: {
   label: string;
   name: string;
   type?: string;
   defaultValue: string;
+  onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <label className="flex flex-col gap-2 text-sm font-medium">
       {label}
-      <Input name={name} type={type} defaultValue={defaultValue} />
+      <Input
+        name={name}
+        type={type}
+        defaultValue={defaultValue}
+        onChange={onChange}
+      />
     </label>
   );
 }
@@ -225,21 +243,18 @@ function ProfileEditForm({ user, onDone }: { user: User; onDone: () => void }) {
 
   const [error, submitAction, isPending] = useActionState(
     async (_prev: string | null, formData: FormData) => {
-      const birth = String(formData.get("birth"));
+      const birth = String(formData.get("birth")).trim();
       const nickname = String(formData.get("nickname")).trim();
-      const phone = String(formData.get("phone")).trim();
-      if (!birth) {
-        return "생년월일을 입력해주세요";
-      }
-      if (!phone) {
-        return "전화번호를 입력해주세요";
-      }
-      if (!PHONE_PATTERN.test(phone)) {
+      const phone = formatPhoneNumber(String(formData.get("phone")).trim());
+      if (phone && !PHONE_PATTERN.test(phone)) {
         return "전화번호는 010-0000-0000 형식으로 입력해주세요";
       }
-      if (!nickname) {
-        return "닉네임을 입력해주세요";
-      }
+
+      const changes = {
+        ...(birth && birth !== user.birth ? { birth } : {}),
+        ...(phone && phone !== user.phone ? { phone } : {}),
+        ...(nickname && nickname !== user.nickname ? { nickname } : {}),
+      };
 
       const selectedImage = formData.get("profileImage");
       const imageFile =
@@ -247,7 +262,7 @@ function ProfileEditForm({ user, onDone }: { user: User; onDone: () => void }) {
           ? selectedImage
           : undefined;
       try {
-        await updateProfile({ changes: { birth, nickname, phone }, imageFile });
+        await updateProfile({ changes, imageFile });
         onDone();
         return null;
       } catch (submitError) {
@@ -276,6 +291,9 @@ function ProfileEditForm({ user, onDone }: { user: User; onDone: () => void }) {
           }
         />
         <div className="flex flex-col gap-5 pt-5">
+          <p className="text-xs text-muted-foreground">
+            변경할 항목만 수정해도 저장할 수 있습니다.
+          </p>
           <div className="flex items-center gap-4">
             <ProfileAvatar
               user={user}
@@ -319,6 +337,11 @@ function ProfileEditForm({ user, onDone }: { user: User; onDone: () => void }) {
               name="phone"
               type="tel"
               defaultValue={user.phone}
+              onChange={(event) => {
+                event.currentTarget.value = formatPhoneNumber(
+                  event.currentTarget.value,
+                );
+              }}
             />
             <ProfileEditField
               label="닉네임"
